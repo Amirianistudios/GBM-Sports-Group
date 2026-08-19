@@ -30,6 +30,7 @@ tmp/
 
 # Agent tooling scratch
 .claude-flow/
+.swarm/
 
 # Python
 __pycache__/
