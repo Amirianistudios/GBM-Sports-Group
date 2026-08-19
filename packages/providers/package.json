@@ -1,0 +1,17 @@
+{
+  "name": "@gbm/providers",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Provider adapters mapping external football data sources onto the GBM contract.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./wyscout": "./src/wyscout/index.ts",
+    "./reep": "./src/reep/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  }
+}

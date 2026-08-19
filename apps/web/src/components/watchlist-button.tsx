@@ -45,7 +45,7 @@ export function WatchlistButton({ playerId }: { playerId: string }) {
       }
 
       // Find or create this user's default list.
-      let { data: lists } = await supabase.from('watchlists').select('id').limit(1);
+      const { data: lists } = await supabase.from('watchlists').select('id').limit(1);
       let watchlistId = lists?.[0]?.id;
 
       if (!watchlistId) {

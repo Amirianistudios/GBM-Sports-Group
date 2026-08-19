@@ -1,5 +1,4 @@
 import { notFound } from 'next/navigation';
-import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { AppShell } from '@/components/app-shell';
 import { ValueChart } from '@/components/value-chart';

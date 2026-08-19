@@ -7,6 +7,24 @@ import { formatCurrency } from '@/lib/format';
 export const dynamic = 'force-dynamic';
 
 /**
+ * Clock reads live outside the component body. The page is force-dynamic, so
+ * every request genuinely re-evaluates these — but React's purity rule (rightly)
+ * refuses to see `Date.now()` inline in a component, since that is how stale
+ * prerenders and hydration mismatches happen.
+ */
+const CONTRACT_HORIZON_DAYS = 547; // 18 months
+
+function contractHorizonDate(): string {
+  return new Date(Date.now() + CONTRACT_HORIZON_DAYS * 86_400_000).toISOString().slice(0, 10);
+}
+
+function greetingForNow(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good morning';
+  return hour < 18 ? 'Good afternoon' : 'Good evening';
+}
+
+/**
  * GBM DAILY INTELLIGENCE FEED.
  * The premise: the platform should be useful when nobody is searching.
  * Every tile is a live count, and every count is a link into the work.
@@ -41,7 +59,7 @@ export default async function DashboardPage() {
     supabase
       .from('contracts')
       .select('*', { count: 'exact', head: true })
-      .lte('expires_on', new Date(Date.now() + 547 * 86_400_000).toISOString().slice(0, 10)),
+      .lte('expires_on', contractHorizonDate()),
     supabase
       .from('representation_records')
       .select('*', { count: 'exact', head: true })
@@ -49,7 +67,7 @@ export default async function DashboardPage() {
       .eq('is_current', true),
   ]);
 
-  const greeting = new Date().getHours() < 12 ? 'Good morning' : new Date().getHours() < 18 ? 'Good afternoon' : 'Good evening';
+  const greeting = greetingForNow();
 
   const tiles = [
     { label: 'Players tracked', value: playerCount ?? 0, href: '/players' },

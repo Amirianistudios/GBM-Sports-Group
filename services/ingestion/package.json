@@ -1,0 +1,19 @@
+{
+  "name": "@gbm/ingestion",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Reproducible ingestion pipeline: dataset acquisition, import, entity resolution, data quality.",
+  "type": "module",
+  "main": "./src/cli.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@gbm/database": "workspace:*",
+    "@gbm/providers": "workspace:*",
+    "@supabase/supabase-js": "^2.112.3",
+    "csv-parse": "^6.1.0",
+    "dotenv": "^17.2.3"
+  }
+}
