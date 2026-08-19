@@ -210,6 +210,24 @@ was found by executing the thing rather than reading it.
   Transfermarkt external id would have aborted the run on a unique violation
   partway through. It now adopts such entities by natural key.
 
+## Provider research
+
+Nine external sources were assessed on 2026-08-19 — see
+[`DATA_SOURCES.md`](DATA_SOURCES.md) for the decision matrix,
+[`DATA_SOURCE_RESEARCH.md`](DATA_SOURCE_RESEARCH.md) for the evidence, and
+[`YOUTH_AND_MINORS.md`](YOUTH_AND_MINORS.md) for the under-18 position.
+
+Two findings change the roadmap:
+
+- **The free tier cannot supply advanced metrics.** Sofascore, FotMob and FBref
+  are all downstream Opta/Stats Perform licensees that cannot sublicense; FBref's
+  data was deleted outright in January 2026. This is one market structure, not
+  three results. Advanced metrics must be licensed — Wyscout is the candidate,
+  and its adapter already exists.
+- **`resolve.ts` is pinned to a frozen register.** Reep v0 has taken no updates
+  since 21 June 2026. Reep v1 is live, free and CC0 with 1,703,816 entities
+  against v0's 444,707. Migrating is the highest-value free action available.
+
 ## Next
 
 1. Confirm the Vercel deployment triggered by the current `main` commit.

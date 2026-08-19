@@ -327,41 +327,325 @@ cost is normalisation: everything is strings; enums are coded with no legend
 
 ---
 
-## Outstanding
+## SportDB — AVOID (dead end)
 
-Still under investigation as of this revision. Absence here means not yet
-assessed — not assessed and dismissed.
+Settles GBM's earlier "promising but unverified" note. It is online but it is a
+paid key in front of a free MIT-licensed scraper.
 
-| Source | Question being answered |
-|---|---|
-| API-Football / SportMonks | Real pricing, and whether the licence permits storing data in GBM's own database |
-| SportDB / Wikidata | Whether SportDB is real or a dead end; Wikidata's marginal value over Reep |
-| Youth, federation and academy sources | Where GBM's actual edge is — plus the GDPR position on data about minors |
+Pulled the live spec at `api.sportdb.dev/api/openapi.json` (HTTP 200): 49 paths,
+of which exactly **two** serve football — `GET /api/flashscore/{full_path}` and
+`GET /api/transfermarkt/{full_path}`, both untyped passthroughs with an empty
+response schema. The other 47 are unmodified `tiangolo/full-stack-fastapi-template`
+boilerplate (`/api/items/`, `/api/login/access-token`) plus billing and admin.
+
+**Every endpoint advertised on its own homepage returns 404** — player search,
+player profile, transfers, club search, live football. A deliberate nonsense
+route also returned 404 while `/api/transfermarkt/anything` returned 401, which
+proves 404 means "no route registered" rather than an auth gate. The published
+documentation omits the required `/transfermarkt/` prefix, so as written it is
+unusable and nobody has noticed.
+
+The advertised Transfermarkt route table exactly matches **`felipeall/transfermarkt-api`**
+— MIT, free, self-hostable — which exposes *more* than SportDB sells (market
+value, injuries, achievements).
+
+Disqualifying beyond the redundancy:
+
+- ToS §7 pushes third-party compliance onto the customer: *"You are responsible
+  for ensuring that your downstream use of data complies with applicable
+  third-party terms."* Paying does not launder the Transfermarkt/Flashscore
+  scraping risk.
+- **No named legal entity** anywhere on the site, ToS or privacy policy. §10
+  governs by *"the jurisdiction of our principal place of business"* — never
+  stated. There is no counterparty to contract with.
+- Free tier contradicts itself: homepage says 1,000 free requests, ToS §3 says
+  100. No published prices.
+
+Drop it from the roadmap.
+
+*UNVERIFIED: no response body was ever seen — every data route is key-gated — so
+its actual data quality is untested. The `felipeall` attribution is a strong
+inference from an exact route-table match, not a disclosure.*
+
+---
+
+## Wikidata — ADOPT LATER, narrowly (Reep already extracted it)
+
+Measured rather than described: SPARQL counts over `wdt:P106 wd:Q937857` against
+`query.wikidata.org/sparql`, compared with computed fill rates over Reep v0's
+`people.csv`.
+
+| Field | Wikidata (390,150 footballers) | Reep v0 (401,061 players) |
+|---|---|---|
+| Date of birth | 92.9% | **93.0%** |
+| Nationality | 87.8% | 84.8% |
+| Position | 73.8% | 72.0% |
+| Transfermarkt id | 53.0% | **51.8%** |
+| Height | 23.8% | 19.5% |
+
+Within 1–4 points on every field, and Reep's CSV already carries
+`date_of_birth, nationality, position, position_detail, height_cm` alongside 40+
+provider keys. **Querying Wikidata directly re-derives what GBM can already read
+from one file.**
+
+On the long tail specifically — the population that motivated the question —
+Wikidata is *thinner* than Reep, not richer: 11,643 footballers born 2005 or
+later (3.0% of the total), against 13,779 in Reep. Roughly 15,000 Reep players
+were sourced outside Wikidata entirely. For scale, GBM's Transfermarkt dataset
+already holds 22,292 players active in 2025. Wikidata will not surface a player
+GBM does not already know about. A spot-check of ten players born 2007+ returned
+height on 0/10 and club on 1/10, and contained two live data faults (one player
+with two conflicting dates of birth, one duplicated across citizenships).
+
+Wikidata has no property for market value, contract, agent or match statistics.
+
+**The one genuine gap it fills:** club history (P54) with dated spells, 67.2% of
+players — a column Reep's `people.csv` does not have. But Transfermarkt gives
+GBM better career data, so this matters only for the ~48% with no Transfermarkt
+id. CC0, free, no auth. Not worth an adapter yet.
+
+---
+
+## URGENT: GBM is pinned to a frozen Reep register
+
+Found while assessing Wikidata, and it outweighs both sources in that brief.
+
+`services/ingestion/src/reep/resolve.ts` downloads the v0 register from
+`raw.githubusercontent.com/withqwerty/reep/main/data`. **That register is
+frozen.** Verified directly from the repository README this session:
+
+> *"This repository is the frozen v0 register … The data files are frozen too,
+> not just the API. The last CSV release was 2026.25 (21 June 2026) … New
+> integrations should start from the v1 surfaces above."*
+
+**A free successor exists and is live.** Verified at `reep.football/downloads`
+(HTTP 200): release **`20260812T142301Z`, 12 August 2026** — one week old —
+carrying **1,703,816 entities against v0's 444,707**. CC0, no registration, no
+payment, CSV and DuckDB.
+
+That is roughly **3.8× the entity coverage**, and the gap matters most exactly
+where GBM is weakest: lower divisions and youth, where v0 was always thinnest.
+
+**Migration is real but survivable.** The README warns v0 `reep_...` ids are *not*
+interchangeable with v1 ids. GBM is well placed for this because it never keyed
+on `reep_id` — Reep output lands in `player_external_ids` as one provider row
+among many, exactly as the canonical-identity rule intended. The work is a new
+namespace and a re-resolve, not a schema change.
+
+> **This is the highest-value free action available to GBM right now**, and it
+> costs nothing but the migration. It is worth more than every source assessed
+> in this document except a Wyscout licence.
+
+---
+
+## API-Football — ADOPT ($19/month, Pro tier)
+
+A different layer from Wyscout, not a substitute for it. Buy it anyway: it fills
+holes GBM has today with no alternative, at a price that does not require a
+decision meeting.
+
+**Pricing** (read via headless browser after Cloudflare 403'd a plain fetch;
+HTTP 200, `api-football.com/pricing`, footer © 2026):
+
+| Plan | Price | Quota |
+|---|---|---|
+| Free | $0 | 100 requests/day |
+| **Pro** | **$19/mo** | **7,500 requests/day** |
+| Ultra | $29/mo | 75,000 requests/day |
+| Mega | $39/mo | 150,000 requests/day |
+
+Verbatim: *"All our plans include all competitions and endpoints."* **No
+per-league gating on any tier** — the price buys throughput, not access. Buy
+direct rather than via RapidAPI: prepaid, no auto-renewal, and overage is
+impossible (hitting quota suspends for the day, it never bills).
+
+> Two traps: *"Plan upgrades are final and it is not possible to downgrade"* — so
+> start on Pro, not Ultra. And a per-minute rate limit exists
+> (`X-RateLimit-Limit` is in the OpenAPI spec) but its per-plan value is
+> **UNVERIFIED**, published nowhere.
+
+**Coverage: 1,239 competitions, of which 562 carry player season statistics** and
+122 carry per-fixture player statistics. Genuine youth and reserve depth —
+Campionato Primavera 1 & 2, U19 Bundesliga, U18 Premier League, FA Youth Cup,
+Professional Development League, Liga Revelação U23, Brasileiro U17/U20 plus ~20
+Brazilian state U20s, São Paulo Youth Cup, Dutch U18/U19/U21, reserve leagues,
+and the full international youth ladder. Second and third tiers throughout
+(Regionalliga, Serie D, Oberliga, National League, Segunda). Depth is uneven —
+Primavera 1 has lineups and standings but no player stats.
+
+**Storage rights: permitted by omission.** The full ToS contains no storage,
+caching or persistence prohibition. The only data restriction is resale. The
+caveat is about *publication*, not storage:
+
+> *"We do not provide a 'license' for the use and publication of the data … Any
+> license or permission to publish the data must be requested by the user from
+> the competent authorities."*
+
+GBM is auth-gated with no public surface, so internal storage, internal display
+and derived analytics are clean. **Record the flag:** that disclaimer becomes
+live the day GBM shows this data to a client or a player. Neither vendor grants
+rights over league or federation IP.
+
+**What it does not have:** no xG anywhere; zero documentation hits for market
+value, contract or agent; no progressive actions, no positional data, no per-90s
+or percentiles served. Its transfers are unusable as fees — `type` is free text
+(observed `Free`, `N/A`) with no amount or currency, so GBM's 175,165 structured
+Transfermarkt transfers are strictly better.
+
+**Why buy it regardless:** `player_season_stats` and `matches` are both **0 rows**
+today with no free path to filling them, and it brings injury and suspension
+*histories* with real start and end dates that nothing GBM holds provides.
+Refreshing all 13,260 resolvable active players costs 13,260 calls — about two
+days on Pro.
+
+> GBM *can* derive per-90s and even percentiles from this, because it gets the
+> entire league population ungated and a cohort is exactly what a percentile
+> needs. What it cannot derive at any effort is xG, progressive actions or
+> anything positional.
+
+---
+
+## SportMonks — AVOID at every published tier
+
+Better licensing language than API-Football, beaten decisively on everything else.
+
+| Plan | Monthly | Leagues |
+|---|---|---|
+| Starter | €29 | any 5 |
+| Growth | €99 | any 30 |
+| Pro | €249 | any 120 |
+| Enterprise | custom | all 2,300+ |
+
+Storage is **explicitly** granted in writing, which is worth recording as the
+best-drafted term found in this round: *"distribution, transfer, and storage of
+data provided by our services is allowed"*, and *"if you use our data to create
+something based on our data and start earning money from your creation,
+everything is fine."* Licensing is per-domain.
+
+**But the coverage headline is inverted.** 2,318 leagues listed, yet only **217
+carry basic player stats and 91 carry detailed player stats** — then metered, so
+Starter unlocks 5 of those 217. API-Football hands over all 562 player-stat
+competitions at $19. SportMonks costs €249 to reach 120.
+
+**The disqualifier is identity.** Measured by joining the Reep v0 register
+against GBM's actual `data/players.csv`:
+
+| Provider | Reep register-wide | GBM all (50,149) | **GBM active 2025 (22,292)** |
+|---|---:|---:|---:|
+| IMPECT | 56,946 | 29,988 (59.8%) | **71.4%** |
+| **Wyscout** | 47,201 | 26,876 (53.6%) | **63.7%** |
+| API-Football | 36,177 | 21,803 (43.5%) | **59.5%** |
+| **SportMonks** | 571 | 565 (1.1%) | **2.5%** |
+
+"Identity is largely solved" holds for Wyscout and API-Football. It is **false**
+for SportMonks — 559 players. Adopting it would require fuzzy name+DOB matching,
+which contradicts the confidence-1.000 discipline `pnpm reep:resolve` is built
+on. Revisit only at Enterprise, and only once a fuzzy resolver exists.
+
+*Also largely redundant: SportMonks' one genuine edge over API-Football is squad
+contract start/end dates, but GBM already holds Transfermarkt contract expiry for
+17,221 of 22,292 active players (77.3%) and agent names for 26,853.*
+
+### Does either replace Wyscout? No.
+
+Neither serves per-90s or positional percentiles. Neither carries a single
+advanced metric — API-Football has no xG at all; SportMonks sells xG as a €24/mo
+add-on across just 91 leagues. Neither has progressive passes or carries, touches
+in box, or event-level positional data.
+
+And identity gives no reason to prefer the cheap option: **Wyscout resolves to a
+higher share of GBM's active squad (63.7%) than API-Football (59.5%).**
+
+*Wyscout's own commercials were not priced this session — UNVERIFIED — but the
+substitution question does not need its price, because both alternatives fail on
+capability first.*
+
+---
+
+## Youth, federation and academy sources — see `YOUTH_AND_MINORS.md`
+
+Assessed and documented separately, because the constraint there is **statutory
+and regulatory rather than contractual** and engineers need to consult it
+independently of provider selection.
+
+Headline: **Wikipedia/Wikidata youth tournament squads are the single cleanest
+source in this entire research** — CC BY-SA, machine-parseable, no terms-of-service
+conflict at all, and the only practical route into African, South American and
+Asian youth football. The Premier League's Pulselive API is open and also carries
+`altIds.opta`, a free cross-provider join key. UEFA's feed is technically trivial
+but needs a licence conversation first.
+
+National federation websites, club academy pages and individual tournament sites
+are **not worth pursuing** — all assessed, none carry structured squad data, and
+Wikipedia already aggregates the same federation press releases.
+
+Critically: `data/transfermarkt/competitions.csv.gz` holds **65 competitions and
+zero youth competitions**. GBM's existing pipeline can never surface a youth
+player. There is nothing to extend.
+
+The regulatory position — The FA's Regulation 5.1 bars any approach to a minor
+before 1 September of the academic year they turn 16, which means a pipeline
+scoring 14-year-olds processes data for a purpose GBM cannot lawfully act on, and
+so fails the necessity limb of Art 6(1)(f) before balancing is even reached — is
+set out in full, with the platform safeguards it implies, in
+[`YOUTH_AND_MINORS.md`](YOUTH_AND_MINORS.md).
 
 ---
 
 ## Where this leaves GBM
 
-The free tier is closed for advanced metrics. That converts an engineering
-question into a commercial one, and GBM is closer to an answer than it looks:
+Nine sources assessed. The conclusion is not that GBM chose badly — it is that
+the free tier structurally cannot supply advanced metrics, and that GBM's real
+edge lies somewhere none of the big providers sell well.
 
-**A Wyscout adapter already exists** — 782 lines in
-`packages/providers/src/wyscout/`, written against the real OpenAPI v3 spec,
-currently unconfigured. Wyscout is purpose-built for this problem: 500+
-competitions including the lower tiers and youth football GBM actually recruits
-from, the full advanced metric set, and per-90s and positional percentiles
-*served* rather than derived. Reep already carries `key_wyscout`, so identity is
-solved. The blocker is price, not engineering — and price is a blocker an
-agency can clear.
+### Buy now
 
-Peers if Wyscout does not land: StatsBomb/Hudl commercial API (same schema as
-the open data, current coverage, and the reducer would already be written),
-Impect, SkillCorner.
+**API-Football Pro — $19/month.** Independent of every other decision here. It
+fills `player_season_stats` and `matches`, both currently **0 rows** with no free
+path, and brings injury and suspension histories nothing else provides. All
+competitions on every tier; only throughput is metered. Start on Pro — downgrades
+are contractually forbidden.
 
-### Two cheap next steps
+### Do first, costs nothing
 
-1. **Have a human read `LICENSE.pdf` in `statsbomb/open-data`** and rule on
-   commercial use. That single document decides whether the research-corpus
-   play is available.
-2. **Get a Wyscout quote.** The adapter exists; no other decision in this
-   document can be made well without knowing the number.
+**Migrate off the frozen Reep v0 register.** `resolve.ts` points at data frozen
+since 21 June. Reep v1 is live, CC0, free, and carries **1,703,816 entities
+against v0's 444,707** — roughly 3.8× the coverage, with the gap widest in the
+lower divisions and youth where GBM is weakest. This is the highest-value free
+action available.
+
+### Price it
+
+**Wyscout, for advanced metrics.** Confirmed as the only candidate that serves
+the thing GBM actually needs — per-90s and positional percentiles served rather
+than derived, across 500+ competitions including lower tiers and youth. The
+adapter already exists, Reep already carries `key_wyscout`, and it resolves to a
+**higher** share of GBM's active squad (63.7%) than API-Football (59.5%). Neither
+commercial alternative substitutes for it: neither has a single advanced metric.
+
+**BeSoccer, for long-tail representation data.** Ask for storage rights, price and
+the tier list in one email. Reaches Spanish tiers 6–8 and Argentine and Brazilian
+lower divisions that Transfermarkt does not, plus contract dates and injuries.
+Test `bs_agent` on a Segunda Andaluza player, not a famous one — that single test
+is the representation thesis.
+
+### Build
+
+**Wikipedia youth squads.** CC BY-SA, no ToS conflict, and the only route into
+the youth football that the commercial providers do not cover. See
+[`YOUTH_AND_MINORS.md`](YOUTH_AND_MINORS.md) before writing any of it.
+
+### Closed — do not revisit
+
+Sofascore, FotMob, FBref, Understat, SportDB, SportMonks. The first three are
+closed by market structure rather than by price, so no further free-source
+research will change the answer.
+
+### Still requiring a human
+
+1. **Read `LICENSE.pdf` in `statsbomb/open-data`** and rule on commercial use.
+   That one document decides whether the research-corpus play is available.
+2. **Get a Wyscout quote.** No other decision here can be made well without the
+   number.
+3. **Read UEFA's General Terms** before touching their youth feed, and The FA's
+   minors authorisation requirements before any approach.
