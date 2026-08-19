@@ -1,0 +1,60 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Environment — never commit credentials
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Next.js
+.next/
+out/
+build/
+next-env.d.ts
+
+# Data working directory.
+# Rule: RAW downloaded datasets stay out of Git (reproducibly re-downloadable).
+# Generated/seed SQL and manifests ARE source and must be tracked.
+data/*
+!data/sql/
+!data/manifests/
+!data/fixtures/
+*.duckdb
+*.duckdb.wal
+*.parquet
+*.csv
+*.zip
+tmp/
+
+# Agent tooling scratch
+.claude-flow/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# Testing / coverage
+coverage/
+.vitest/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Supabase local
+supabase/.branches
+supabase/.temp

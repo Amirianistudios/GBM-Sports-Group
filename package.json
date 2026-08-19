@@ -1,0 +1,32 @@
+{
+  "name": "gbm-intelligence",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Private football scouting and talent intelligence platform for GBM Sports Group.",
+  "scripts": {
+    "dev": "pnpm --filter @gbm/web dev",
+    "build": "pnpm --filter @gbm/web build",
+    "start": "pnpm --filter @gbm/web start",
+    "lint": "pnpm --filter @gbm/web lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "providers:build": "pnpm --filter @gbm/providers build",
+    "wyscout:test": "tsx scripts/test-wyscout.ts",
+    "reep:test": "tsx scripts/test-reep.ts",
+    "enrich": "tsx scripts/enrich-player.ts",
+    "import:wyscout": "tsx scripts/import-wyscout-sample.ts",
+    "import:tm-dataset": "tsx scripts/import-transfermarkt-dataset.ts",
+    "db:types": "tsx scripts/generate-types.ts"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4",
+    "@types/node": "^22.15.3",
+    "dotenv": "^17.2.3"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@11.22.0"
+}
