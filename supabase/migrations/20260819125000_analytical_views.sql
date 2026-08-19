@@ -8,12 +8,17 @@
 --
 -- Recording them here closes that drift. Timestamped before the 1300xx
 -- migrations because the live database already contains them.
+--
+-- Each view is created with security_invoker so it enforces the QUERYING
+-- user's row-level security rather than the owner's. Without it these views
+-- are an unauthenticated read path around RLS — see migration 20260819130200,
+-- which closed exactly that hole on the hosted database.
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
 -- Current market value: the most recent valuation per player.
 -- ----------------------------------------------------------------------------
-create or replace view v_player_current_value as
+create or replace view v_player_current_value with (security_invoker = on) as
 select distinct on (player_id)
   player_id,
   value_amount,
@@ -33,7 +38,7 @@ comment on view v_player_current_value is
 -- silently winning — GBM must see the disagreement, because an approach based
 -- on the wrong agency record is worse than no approach at all.
 -- ----------------------------------------------------------------------------
-create or replace view v_player_representation as
+create or replace view v_player_representation with (security_invoker = on) as
 select
   player_id,
   (array_agg(agency_name order by (agency_name is null), retrieved_at desc)
@@ -58,7 +63,7 @@ comment on view v_player_representation is
 -- on the profile. A provider absent here is shown as not available, never as
 -- connected.
 -- ----------------------------------------------------------------------------
-create or replace view v_player_source_coverage as
+create or replace view v_player_source_coverage with (security_invoker = on) as
 select
   p.id as player_id,
   count(distinct e.provider_code) as provider_count,
@@ -78,7 +83,7 @@ comment on view v_player_source_coverage is
 -- ----------------------------------------------------------------------------
 -- Market value trend: current vs peak vs twelve months ago.
 -- ----------------------------------------------------------------------------
-create or replace view v_player_value_trend as
+create or replace view v_player_value_trend with (security_invoker = on) as
 with agg as (
   select
     player_id,
@@ -125,7 +130,7 @@ comment on view v_player_value_trend is
 -- NO_AGENCY_LISTED is what a source displayed on a date, never a legal fact.
 -- The UI carries that caveat and so does this comment.
 -- ----------------------------------------------------------------------------
-create or replace view v_representation_opportunities as
+create or replace view v_representation_opportunities with (security_invoker = on) as
 select
   p.id as player_id,
   p.full_name,

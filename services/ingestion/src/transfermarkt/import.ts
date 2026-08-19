@@ -14,6 +14,8 @@
  *      looked and found nothing — never a silent assumption that the player
  *      is unrepresented.
  */
+import { randomUUID } from 'node:crypto';
+
 import { collect, date, findTable, int, num, readRows, str, type Row } from '../csv.js';
 import { foot, normalizeName, parseFee, tmPlayerUrl } from '../normalize.js';
 import { admin, selectAll, upsertChunked } from '../supabase.js';
@@ -24,6 +26,13 @@ const PROVIDER = 'TRANSFERMARKT_DATASET';
 const TM = 'https://www.transfermarkt.com';
 
 type Log = (m: string) => void;
+
+/** An entity that already exists in GBM but is missing this provider's id. */
+interface Adoption {
+  id: string;
+  tmId: string;
+  url: string | null;
+}
 
 /** Locates the dataset, preferring the downloaded `.csv.gz` set. */
 function table(name: string) {
@@ -113,32 +122,48 @@ async function importCompetitions(
   log: Log,
 ): Promise<Map<string, string>> {
   const map = await externalIdMap('competition_external_ids', 'competition_id');
+  const byNaturalKey = await naturalKeyMap('competitions');
   const rows = await collect(table('competitions'));
   run.count({ fetched: rows.length });
 
   const updates: Record<string, unknown>[] = [];
   const inserts: { tmId: string; row: Record<string, unknown>; url: string | null }[] = [];
+  const adopt: Adoption[] = [];
 
   for (const r of rows) {
     const tmId = str(r.competition_id);
     if (!tmId) continue;
     const countryName = normalizeName(str(r.country_name));
+    const areaName = str(r.country_name);
+    const name = str(r.name) ?? tmId;
     const payload = {
-      name: str(r.name) ?? tmId,
+      name,
       short_name: str(r.competition_code),
       country_id: countryName ? (countryByName.get(countryName) ?? null) : null,
-      area_name: str(r.country_name),
+      area_name: areaName,
       tier: tierOf(str(r.type)),
-      is_youth: (str(r.name) ?? '').toLowerCase().includes('u19'),
+      is_youth: name.toLowerCase().includes('u19'),
       updated_at: new Date().toISOString(),
     };
-    const existingId = map.get(tmId);
-    if (existingId) updates.push({ id: existingId, ...payload });
-    else inserts.push({ tmId, row: payload, url: str(r.url) });
+
+    const url = str(r.url);
+    const normalized = normalizeName(name);
+    const key = normalized ? naturalKey('competitions', normalized, areaName) : null;
+    const existingId = map.get(tmId) ?? (key ? byNaturalKey.get(key) : undefined);
+
+    if (existingId) {
+      updates.push({ id: existingId, ...payload });
+      if (!map.has(tmId)) {
+        adopt.push({ id: existingId, tmId, url });
+        map.set(tmId, existingId);
+      }
+    } else {
+      inserts.push({ tmId, row: payload, url });
+    }
   }
 
-  await writeEntities('competitions', 'competition_external_ids', 'competition_id', updates, inserts, map, run);
-  log(`  competitions     ${map.size} mapped (+${inserts.length} new)`);
+  await writeEntities('competitions', 'competition_external_ids', 'competition_id', updates, inserts, map, run, { adopt });
+  log(`  competitions     ${map.size} mapped (+${inserts.length} new, ${adopt.length} adopted)`);
   return map;
 }
 
@@ -169,28 +194,41 @@ async function importClubs(
   log: Log,
 ): Promise<Map<string, string>> {
   const map = await externalIdMap('club_external_ids', 'club_id');
+  const byNaturalKey = await naturalKeyMap('clubs');
   const rows = await collect(table('clubs'));
   run.count({ fetched: rows.length });
 
   const updates: Record<string, unknown>[] = [];
   const inserts: { tmId: string; row: Record<string, unknown>; url: string | null }[] = [];
+  const adopt: Adoption[] = [];
 
   for (const r of rows) {
     const tmId = str(r.club_id);
     if (!tmId) continue;
+    const name = str(r.name) ?? tmId;
     const payload = {
-      name: str(r.name) ?? tmId,
+      name,
       short_name: str(r.club_code),
-      founded_year: null,
       updated_at: new Date().toISOString(),
     };
-    const existingId = map.get(tmId);
-    if (existingId) updates.push({ id: existingId, ...payload });
-    else inserts.push({ tmId, row: payload, url: str(r.url) });
+
+    const url = str(r.url);
+    const normalized = normalizeName(name);
+    const existingId = map.get(tmId) ?? (normalized ? byNaturalKey.get(normalized) : undefined);
+
+    if (existingId) {
+      updates.push({ id: existingId, ...payload });
+      if (!map.has(tmId)) {
+        adopt.push({ id: existingId, tmId, url });
+        map.set(tmId, existingId);
+      }
+    } else {
+      inserts.push({ tmId, row: payload, url });
+    }
   }
 
-  await writeEntities('clubs', 'club_external_ids', 'club_id', updates, inserts, map, run);
-  log(`  clubs            ${map.size} mapped (+${inserts.length} new)`);
+  await writeEntities('clubs', 'club_external_ids', 'club_id', updates, inserts, map, run, { adopt });
+  log(`  clubs            ${map.size} mapped (+${inserts.length} new, ${adopt.length} adopted)`);
   return map;
 }
 
@@ -506,9 +544,56 @@ async function externalIdMap(tableName: string, fk: string): Promise<Map<string,
 }
 
 /**
+ * Loads normalised-name → GBM-UUID for entities that carry a natural key.
+ *
+ * `clubs.normalized_name` and `competitions(normalized_name, area_name)` are
+ * UNIQUE in the schema. Without this fallback the importer would try to insert
+ * a club that already exists under a different route — one with no
+ * TRANSFERMARKT_DATASET external id — and die on the unique violation partway
+ * through a run. Matching on the natural key instead adopts the existing entity
+ * and gives it the provider id it was missing.
+ *
+ * Note this is deliberately NOT done for players: `(normalized_name,
+ * date_of_birth)` genuinely collides for distinct footballers, so players are
+ * reconciled only through their provider ids.
+ */
+async function naturalKeyMap(
+  entityTable: 'clubs' | 'competitions',
+): Promise<Map<string, string>> {
+  const columns = entityTable === 'competitions' ? 'id, normalized_name, area_name' : 'id, normalized_name';
+  const rows = await selectAll<{ id: string; normalized_name: string | null; area_name?: string | null }>(
+    entityTable,
+    columns,
+  );
+  const map = new Map<string, string>();
+  for (const r of rows) {
+    if (!r.normalized_name) continue;
+    map.set(naturalKey(entityTable, r.normalized_name, r.area_name ?? null), r.id);
+  }
+  return map;
+}
+
+/** Mirrors the unique index definition for each entity. */
+function naturalKey(
+  entityTable: 'clubs' | 'competitions',
+  normalized: string,
+  areaName: string | null,
+): string {
+  return entityTable === 'competitions' ? `${normalized}|${areaName ?? ''}` : normalized;
+}
+
+/**
  * Applies updates (by known UUID) and inserts (new entities plus their
  * external-id rows), then extends the caller's map so downstream steps can
  * resolve the ids that were just created.
+ *
+ * The GBM UUID is generated here rather than by the database default. That is
+ * deliberate and load-bearing: pairing an inserted entity with its external id
+ * by the position of the row in an INSERT … RETURNING response would make the
+ * link depend on PostgREST preserving input order. If it ever did not, a player
+ * would silently acquire another player's Transfermarkt id — corruption that
+ * looks like valid data and would be almost impossible to trace back. Minting
+ * the id client-side removes the ordering question entirely.
  */
 async function writeEntities(
   entityTable: string,
@@ -518,42 +603,71 @@ async function writeEntities(
   inserts: { tmId: string; row: Record<string, unknown>; url: string | null }[],
   map: Map<string, string>,
   run: IngestionRun,
-  extra: { namespace?: string; matchMethod?: string } = {},
+  extra: { namespace?: string; matchMethod?: string; adopt?: Adoption[] } = {},
 ): Promise<void> {
-  if (updates.length) {
-    await upsertChunked(entityTable, updates, { onConflict: 'id', label: entityTable });
-    run.count({ updated: updates.length });
+  // Two source rows can resolve to the same GBM entity through the natural-key
+  // fallback. Postgres rejects an ON CONFLICT DO UPDATE that touches one row
+  // twice in a single statement, so the last write per id wins here instead.
+  const deduped = [...new Map(updates.map((u) => [u.id as string, u])).values()];
+
+  if (deduped.length) {
+    await upsertChunked(entityTable, deduped, { onConflict: 'id', label: entityTable });
+    run.count({ updated: deduped.length });
   }
 
-  for (let i = 0; i < inserts.length; i += 500) {
-    const slice = inserts.slice(i, i + 500);
-    const { data, error } = await admin()
-      .from(entityTable)
-      .insert(slice.map((s) => s.row))
-      .select('id');
-    if (error) throw new Error(`${entityTable}: insert failed — ${error.message}`);
-
-    const links = (data ?? []).map((rec, idx) => {
-      const src = slice[idx];
-      map.set(src.tmId, rec.id as string);
-      return {
-        [fk]: rec.id,
+  // Entities matched by natural key exist already but lack this provider's id.
+  if (extra.adopt?.length) {
+    await upsertChunked(
+      externalTable,
+      extra.adopt.map((a) => ({
+        [fk]: a.id,
         provider_code: PROVIDER,
         namespace: extra.namespace ?? null,
-        external_id: src.tmId,
-        url: src.url,
+        external_id: a.tmId,
+        url: a.url,
         confidence: 1.0,
         ...(externalTable === 'player_external_ids'
           ? { match_method: extra.matchMethod ?? 'EXACT_PROVIDER_MAPPING' }
           : {}),
-      };
-    });
+      })),
+      { onConflict: 'provider_code,namespace,external_id', ignoreDuplicates: true, label: externalTable },
+    );
+  }
+
+  // Assign every new entity its id up front, so entity and link always agree.
+  const pending = inserts.map((s) => ({ ...s, id: randomUUID() }));
+
+  for (let i = 0; i < pending.length; i += 500) {
+    const slice = pending.slice(i, i + 500);
+
+    await upsertChunked(
+      entityTable,
+      slice.map((s) => ({ id: s.id, ...s.row })),
+      { onConflict: 'id', ignoreDuplicates: true, label: entityTable },
+    );
+
+    const links = slice.map((s) => ({
+      [fk]: s.id,
+      provider_code: PROVIDER,
+      namespace: extra.namespace ?? null,
+      external_id: s.tmId,
+      url: s.url,
+      confidence: 1.0,
+      ...(externalTable === 'player_external_ids'
+        ? { match_method: extra.matchMethod ?? 'EXACT_PROVIDER_MAPPING' }
+        : {}),
+    }));
 
     await upsertChunked(externalTable, links, {
       onConflict: 'provider_code,namespace,external_id',
       ignoreDuplicates: true,
       label: externalTable,
     });
+
+    // Only publish ids once both the entity and its link are durable, so a
+    // crash between the two writes cannot leave later steps referencing a
+    // player that has no external id.
+    for (const s of slice) map.set(s.tmId, s.id);
     run.count({ created: slice.length });
   }
 }

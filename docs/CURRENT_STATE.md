@@ -76,33 +76,59 @@ What those numbers mean:
   never applied.
 - `ingestion_runs` is 0 because no pipeline had existed. The service now exists
   but has not been run against the database.
-- The 31 `discovery_signals` were inserted by hand and are sample data, not
-  computed intelligence. Migration `20260819130100` retires them and replaces
-  them with a reproducible computation.
+- The 31 `discovery_signals` are now genuinely computed. The hand-seeded
+  originals were retired (not deleted) with their provenance stamped into
+  `evidence`, and replaced by `gbm_compute_discovery_signals()`: 1
+  CONTRACT_EXPIRING, 16 RAPID_VALUE_GROWTH, 14 UNREPRESENTED_HIGH_POTENTIAL.
+  Running it twice returns identical counts and zero duplicate player/type
+  pairs, so it is genuinely idempotent.
 
 ### Migrations
 
-Applied to the hosted project:
+All eleven migrations are applied to the hosted project, and the repository now
+reproduces the hosted schema exactly. Three had been applied directly to the
+database in an earlier session and existed in **no file** — `security_hardening`,
+`natural_key_constraints` and the intelligence views. They have been captured,
+so a database rebuilt from `supabase/migrations/` is no longer missing
+constraints and hardening the live one has.
 
-- `20260819120000_core_entities.sql`
-- `20260819120100_football_data.sql`
-- `20260819120200_provenance_ingestion_resolution.sql`
-- `20260819120300_gbm_workspace.sql`
-- `20260819120400_rls_and_seed.sql`
+| Migration | Purpose |
+|---|---|
+| `20260819120000_core_entities` | Canonical model, provider registry |
+| `20260819120100_football_data` | Transfers, contracts, values, representation |
+| `20260819120200_provenance_ingestion_resolution` | Provenance, ingestion, entity resolution |
+| `20260819120300_gbm_workspace` | Watchlists, scouting, signals |
+| `20260819120400_rls_and_seed` | RLS policies and provider seed |
+| `20260819120500_security_hardening` | *(captured)* search_path pinning, function grants |
+| `20260819120600_natural_key_constraints` | *(captured)* unique names for clubs/competitions/countries |
+| `20260819125000_analytical_views` | *(captured)* the five `v_*` views, now `security_invoker` |
+| `20260819130000_ingestion_idempotency` | Natural keys for re-import, data-confidence function |
+| `20260819130100_discovery_signals` | Reproducible signal computation |
+| `20260819130200_harden_views_and_functions` | Closes the anonymous read path (below) |
 
-Committed but **not yet applied**:
+## Security
 
-- `20260819125000_analytical_views.sql` — captures five views (`v_player_current_value`,
-  `v_player_representation`, `v_player_source_coverage`, `v_player_value_trend`,
-  `v_representation_opportunities`) that exist in the live database but had
-  never been written into a migration. The dashboard and player profile read
-  from them, so a database rebuilt from migrations alone would have returned
-  500s. This is a drift fix, not a schema change — applying it is a no-op
-  against the current database.
-- `20260819130000_ingestion_idempotency.sql` — natural keys for `transfers` and
-  `contracts` (`NULLS NOT DISTINCT`), plus `gbm_recompute_data_confidence()`.
-- `20260819130100_discovery_signals.sql` — retires the sample signals and adds
-  `gbm_compute_discovery_signals()`.
+Two live vulnerabilities were found by querying the database as `anon` rather
+than by reading code. Both are fixed and the fix is verified.
+
+**Anonymous read of the entire scouting database.** The five `v_*` views were
+created without `security_invoker`, so they ran with the owner's privileges and
+bypassed row-level security. Combined with the default `SELECT` grant to `anon`
+— and the anon key being public, since it ships in the browser bundle — an
+unauthenticated request to `/rest/v1/v_representation_opportunities` returned
+every player with name, date of birth, valuation, contract expiry and agency
+status. Verified as `anon`: 30 rows before, `permission denied` after. Verified
+as the real signed-in owner: still 30 rows, so legitimate access is unaffected.
+
+**Anonymous invocation of the ingestion functions.** Both functions added with
+the pipeline are `SECURITY DEFINER` and mutate data, and the default
+EXECUTE-to-PUBLIC grant left them callable through `/rpc/`.
+`gbm_compute_discovery_signals()` deletes and rewrites the whole signal set, so
+this was a data-destruction vector open to the internet. Execute is now revoked
+from `public`, `anon` and `authenticated`, and granted only to `service_role`.
+
+Neither hole originated in the application code, which is why neither showed up
+in a build or a typecheck.
 
 ## Application
 
@@ -144,23 +170,52 @@ research queue.
 
 ## Known gaps
 
-1. Cross-provider identity is unproven — every player has one provider id.
-2. No ingestion has run; the pipeline is untested against the database.
-3. Three migrations are committed but not applied.
-4. `.env.example` could not be written: the local permission configuration
-   blocks all `.env*` paths. `docs/DEPLOYMENT.md` holds the authoritative
-   variable-name list meanwhile.
-5. `gh` and `vercel` CLIs are not installed on the development machine, so
+1. Cross-provider identity is still unproven — every player has exactly one
+   provider id. `pnpm reep:resolve` exists to fix this but has not been run.
+2. No ingestion has run against the database; `ingestion_runs` is still 0.
+   The pipeline's SQL side is now proven, its write path is not.
+3. `.env.example` could not be written: the local permission configuration
+   blocks all `.env*` paths, for reading and writing alike.
+   `docs/DEPLOYMENT.md` holds the authoritative variable-name list meanwhile.
+4. `gh` and `vercel` CLIs are not installed on the development machine, so
    deployment state cannot be read from here.
-6. No provider adapters beyond Wyscout (untested, deliberately out of scope)
-   and Reep.
-7. Only unit tests exist — no integration test touches Supabase.
+5. No provider adapters beyond Wyscout (unconfigured, deliberately out of
+   scope) and Reep.
+6. Only unit tests exist. Nothing integration-tests the importer against a
+   real database, which is how the SQL defects below reached the repository in
+   the first place.
+
+### Defects found and fixed after first commit
+
+Recorded because the pattern matters more than the individual bugs: every one
+was invisible to `pnpm build`, `pnpm typecheck` and `pnpm lint`, and every one
+was found by executing the thing rather than reading it.
+
+- `extract(day from <date> - <date>)` raised `function pg_catalog.extract(unknown,
+  integer) does not exist` — in Postgres `date - date` is an integer, not an
+  interval. Migration `20260819130100` would have failed outright on apply.
+- Discovery signals emitted one row per contract and per representation record,
+  so a player with two contracts appeared twice in a single Discover list.
+  Now deduplicated per player per signal type.
+- `RAPID_VALUE_GROWTH` scored linearly and capped at 100, so 100% growth and
+  1400% growth ranked identically — flattening exactly the ordering the page
+  sorts on. Now logarithmic: 50% maps to 50, ~1600% to 100.
+- The importer paired inserted entities with their external ids by array
+  position in an `INSERT … RETURNING` response. Had PostgREST ever returned
+  rows out of order, a player would have silently acquired another player's
+  Transfermarkt id. GBM UUIDs are now minted client-side, removing the
+  ordering assumption entirely.
+- The importer did not reconcile against `clubs_name_uniq` or
+  `competitions_name_area_uniq`, so a club already present without a
+  Transfermarkt external id would have aborted the run on a unique violation
+  partway through. It now adopts such entities by natural key.
 
 ## Next
 
 1. Confirm the Vercel deployment triggered by the current `main` commit.
-2. Apply the three pending migrations.
-3. Run `pnpm data:import` (staged), then `pnpm reep:resolve` — this is what
-   turns 30 sample players into a real multi-source dataset.
-4. Prove one player end-to-end across providers on the profile page.
-5. Schedule the refresh via GitHub Actions.
+2. Run `pnpm data:import --max-players 2000` as a staged first real ingestion,
+   then `pnpm reep:resolve`. This is the step that turns 30 sample players into
+   a real multi-source dataset and finally populates `ingestion_runs`.
+3. Prove one player end-to-end across providers on the profile page.
+4. Add an integration test that runs the importer against a scratch database.
+5. Schedule the weekly refresh via GitHub Actions.

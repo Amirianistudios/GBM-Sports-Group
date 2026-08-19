@@ -8,6 +8,10 @@
 -- Everything below is computed from data GBM actually holds, set-based, and
 -- every signal carries the rationale that produced it. A signal GBM cannot
 -- explain is a signal GBM cannot act on.
+--
+-- Note on date arithmetic: in Postgres `date - date` yields an integer number
+-- of days, not an interval, so `extract(day from …)` over it raises. Day counts
+-- below are therefore plain integer subtraction.
 -- ============================================================================
 
 -- Retire the hand-seeded sample set, recording why.
@@ -21,26 +25,16 @@ set is_current = false,
 where model_version = 'v0';
 
 -- ============================================================================
--- Latest market value per player, as a reusable view.
--- ============================================================================
-create or replace view player_latest_market_value as
-select distinct on (player_id)
-  player_id,
-  value_amount,
-  valued_on,
-  provider_code
-from market_values
-order by player_id, valued_on desc;
-
-comment on view player_latest_market_value is
-  'Most recent market valuation per player, whichever provider supplied it.';
-
--- ============================================================================
 -- gbm_compute_discovery_signals()
 -- ----------------------------------------------------------------------------
 -- Recomputes the full current signal set under model_version 'v1'. Idempotent:
 -- the previous v1 generation is removed first, so running it twice produces the
 -- same rows rather than duplicates.
+--
+-- Every branch emits at most one row per player per signal type. That is not
+-- cosmetic: a player with two contract rows, or listed as unrepresented by two
+-- providers, would otherwise appear two or three times in a single Discover
+-- list and read as several different prospects.
 -- ============================================================================
 create or replace function gbm_compute_discovery_signals()
 returns table (signal_type text, inserted int)
@@ -55,40 +49,57 @@ begin
 
   -- --------------------------------------------------------------------
   -- CONTRACT_EXPIRING — inside the final 18 months.
-  -- Scored so that the closest expiry ranks highest.
+  -- Where a player has several contract rows the soonest expiry wins, since
+  -- that is the one that creates the opportunity.
   -- --------------------------------------------------------------------
   insert into discovery_signals (player_id, signal_type, score, rationale, evidence, model_version)
   select
-    c.player_id,
+    x.player_id,
     'CONTRACT_EXPIRING',
-    round(greatest(1, 100 - (extract(day from c.expires_on - current_date) / 5.5))::numeric, 3),
+    round(greatest(1, 100 - (x.days_remaining / 5.5))::numeric, 3),
     format('Contract expires %s (%s months). %s',
-           to_char(c.expires_on, 'DD Mon YYYY'),
-           round(extract(day from c.expires_on - current_date) / 30.44),
-           coalesce(cl.name, 'club unknown')),
+           to_char(x.expires_on, 'DD Mon YYYY'),
+           round(x.days_remaining / 30.44),
+           coalesce(x.club_name, 'club unknown')),
     jsonb_build_object(
-      'expires_on', c.expires_on,
-      'days_remaining', extract(day from c.expires_on - current_date),
-      'provider', c.provider_code
+      'expires_on', x.expires_on,
+      'days_remaining', x.days_remaining,
+      'provider', x.provider_code
     ),
     model
-  from contracts c
-  left join clubs cl on cl.id = c.club_id
-  where c.expires_on is not null
-    and c.expires_on > current_date
-    and c.expires_on <= current_date + interval '18 months'
-  on conflict do nothing;
+  from (
+    select distinct on (c.player_id)
+      c.player_id,
+      c.expires_on,
+      (c.expires_on - current_date)::numeric as days_remaining,
+      c.provider_code,
+      cl.name as club_name
+    from contracts c
+    left join clubs cl on cl.id = c.club_id
+    where c.expires_on is not null
+      and c.expires_on > current_date
+      and c.expires_on <= current_date + interval '18 months'
+    order by c.player_id, c.expires_on
+  ) x;
 
   -- --------------------------------------------------------------------
   -- RAPID_VALUE_GROWTH — market value up >= 50% over roughly 12 months.
+  -- One row per player by construction: the latest valuation is unique and
+  -- the lateral picks a single prior point.
   -- --------------------------------------------------------------------
   insert into discovery_signals (player_id, signal_type, score, rationale, evidence, model_version)
   select
     g.player_id,
     'RAPID_VALUE_GROWTH',
-    round(least(100, g.growth_pct)::numeric, 3),
+    -- Logarithmic, not linear: a linear cap at 100 made 100% growth and
+    -- 1400% growth score identically, which flattens exactly the ranking the
+    -- Discover page sorts on. This maps 50% -> 50 and ~1600% -> 100 while
+    -- keeping every step in between distinguishable.
+    round(least(100, 50 + 10 * log(2.0, (g.growth_pct / 50.0)))::numeric, 3),
     format('Market value rose %s%% in 12 months, from %s to %s EUR.',
-           round(g.growth_pct), to_char(g.past_value, 'FM999,999,999'), to_char(g.now_value, 'FM999,999,999')),
+           round(g.growth_pct),
+           to_char(g.past_value, 'FM999,999,999'),
+           to_char(g.now_value, 'FM999,999,999')),
     jsonb_build_object(
       'previous_value', g.past_value, 'current_value', g.now_value,
       'previous_date', g.past_date, 'current_date', g.now_date,
@@ -103,7 +114,7 @@ begin
       pv.value_amount as past_value,
       pv.valued_on    as past_date,
       ((lv.value_amount - pv.value_amount) / nullif(pv.value_amount, 0)) * 100 as growth_pct
-    from player_latest_market_value lv
+    from v_player_current_value lv
     join lateral (
       select value_amount, valued_on
       from market_values m
@@ -114,38 +125,48 @@ begin
     ) pv on true
     where lv.value_amount > 0 and pv.value_amount > 0
   ) g
-  where g.growth_pct >= 50
-  on conflict do nothing;
+  where g.growth_pct >= 50;
 
   -- --------------------------------------------------------------------
   -- UNREPRESENTED_HIGH_POTENTIAL — young, valued, and the source lists no
-  -- agency. NO_AGENCY_LISTED is what Transfermarkt displays, not proof the
-  -- player is legally unrepresented; the rationale says so explicitly.
+  -- agency. NO_AGENCY_LISTED is what a provider displayed on a date, not
+  -- proof the player is unrepresented; the rationale says so explicitly.
+  --
+  -- Deduplicated per player: two providers both showing no agency is one
+  -- prospect, not two. The most recently checked provider is cited.
   -- --------------------------------------------------------------------
   insert into discovery_signals (player_id, signal_type, score, rationale, evidence, model_version)
   select
-    p.id,
+    x.player_id,
     'UNREPRESENTED_HIGH_POTENTIAL',
-    round(least(100, (lv.value_amount / 50000.0) + (24 - age.years) * 4)::numeric, 3),
+    round(least(100, (x.value_amount / 50000.0) + (24 - x.years) * 4)::numeric, 3),
     format('Age %s, valued at %s EUR, and %s lists no agency (checked %s). Requires verification — a blank field is not proof of no representation.',
-           age.years, to_char(lv.value_amount, 'FM999,999,999'),
-           r.provider_code, to_char(r.retrieved_at, 'DD Mon YYYY')),
+           x.years,
+           to_char(x.value_amount, 'FM999,999,999'),
+           x.provider_code,
+           to_char(x.retrieved_at, 'DD Mon YYYY')),
     jsonb_build_object(
-      'age', age.years, 'market_value', lv.value_amount,
-      'representation_status', r.status, 'checked_at', r.retrieved_at
+      'age', x.years, 'market_value', x.value_amount,
+      'representation_status', x.status, 'checked_at', x.retrieved_at
     ),
     model
-  from players p
-  join representation_records r
-    on r.player_id = p.id and r.is_current and r.status = 'NO_AGENCY_LISTED'
-  join player_latest_market_value lv on lv.player_id = p.id
-  cross join lateral (
-    select floor(extract(epoch from age(current_date, p.date_of_birth)) / 31557600)::int as years
-  ) age
-  where p.date_of_birth is not null
-    and age.years between 15 and 23
-    and lv.value_amount >= 250000
-  on conflict do nothing;
+  from (
+    select distinct on (p.id)
+      p.id as player_id,
+      floor(extract(epoch from age(current_date, p.date_of_birth)) / 31557600)::int as years,
+      lv.value_amount,
+      r.provider_code,
+      r.retrieved_at,
+      r.status
+    from players p
+    join representation_records r
+      on r.player_id = p.id and r.is_current and r.status = 'NO_AGENCY_LISTED'
+    join v_player_current_value lv on lv.player_id = p.id
+    where p.date_of_birth is not null
+      and lv.value_amount >= 250000
+      and floor(extract(epoch from age(current_date, p.date_of_birth)) / 31557600)::int between 15 and 23
+    order by p.id, r.retrieved_at desc
+  ) x;
 
   return query
     select ds.signal_type, count(*)::int
@@ -157,4 +178,4 @@ end;
 $$;
 
 comment on function gbm_compute_discovery_signals is
-  'Recomputes the current discovery signal set from stored facts. Idempotent; replaces the previous v1 generation.';
+  'Recomputes the current discovery signal set from stored facts. Idempotent; at most one row per player per signal type.';
