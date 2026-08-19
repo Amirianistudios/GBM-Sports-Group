@@ -76,6 +76,9 @@ Both are read lazily by `apps/web/src/lib/supabase/env.ts`. If either is missing
 |---|---|
 | `SUPABASE_ACCESS_TOKEN` | Personal access token used by `pnpm db:types`. |
 | `SUPABASE_PROJECT_REF` | Defaults to `tyzndcjuiffnyhluddce`. |
+| `API_FOOTBALL_KEY` | api-sports.io key for season/match statistics and injuries. Server-side only — never expose via `NEXT_PUBLIC_`. |
+| `API_FOOTBALL_BASE_URL` | Defaults to `https://v3.football.api-sports.io`. |
+| `API_FOOTBALL_RATE_LIMIT_PER_SECOND` | Defaults to 2. The per-minute cap is undocumented, so this stays conservative. |
 | `REEP_API_KEY`, `REEP_BASE_URL` | Only for the metered Reep v1 API. The downloadable v0 register needs no key. |
 | `GBM_USER_AGENT` | Identifies GBM to public sources that ask for a contact header. |
 | `WYSCOUT_*` | Not configured. No code path requires it; the application builds and runs without it. |

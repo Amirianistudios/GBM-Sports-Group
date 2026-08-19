@@ -14,7 +14,7 @@ Assessed 2026-08-19.
 | Transfermarkt dataset | **LIVE** | free | Bio, market values, transfers, contracts, agent names |
 | Reep v0 register | **LIVE — migrate to v1** | free | Cross-provider identity |
 | Reep v1 register | **ADOPT NEXT** | free | 3.8× the entities; v0 is frozen |
-| API-Football | **BUY** | $19/mo | Season and match statistics, injuries, youth competitions |
+| API-Football | **CONNECTED** (Free tier) | $0 → $19/mo | Season and match statistics, injuries, youth competitions |
 | Wyscout | **PRICE IT** | quote | Advanced metrics, per-90s, positional percentiles |
 | BeSoccer | **INVESTIGATE** | quote | Spanish tiers 6–8, LatAm lower divisions, contracts, injuries |
 | Wikipedia / Wikidata youth squads | **BUILD** | free | Youth tournament squads — the only clean licence in the set |
@@ -61,6 +61,27 @@ identity as well as capability.
 | **Wyscout** | **63.7%** |
 | API-Football | 59.5% |
 | SportMonks | 2.5% |
+
+## API-Football: connected, and why the free tier is not enough
+
+Adapter live at `packages/providers/src/apifootball/`; probe with
+`pnpm apifootball:test`.
+
+Verified against the live key on 2026-08-19: the **Free plan is restricted to
+seasons 2022-2024**. Requesting the current season returns, verbatim,
+`"Free plans do not have access to this season, try from 2022 to 2024."` with
+zero results — and because this API reports plan violations **inside an HTTP 200
+response**, an adapter that trusted the status code would read that as a player
+with no matches rather than as an access error. The adapter treats a populated
+`errors` field as a thrown error for exactly this reason.
+
+A scouting platform needs the current season, so **Pro at $19/month is required
+for real use**. The free tier is sufficient to develop and test against.
+
+Confirmed present in the data: appearances, minutes, goals, assists, cards,
+shots, passes, key passes, dribbles, **duels and tackles**, plus a composite
+rating. Confirmed absent: xG, progressive passes and carries, touches in box,
+and anything positional or event-level.
 
 ## The rule that shaped these verdicts
 

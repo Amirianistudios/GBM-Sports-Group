@@ -10,3 +10,4 @@ export * from './types.js';
 export * from './http.js';
 export { WyscoutProvider, type WyscoutConfig } from './wyscout/index.js';
 export { ReepProvider, REEP_PROVIDER_KEYS, type ReepConfig } from './reep/index.js';
+export { ApiFootballProvider, type ApiFootballConfig } from './apifootball/index.js';

@@ -11,16 +11,15 @@
     "lint": "pnpm --filter @gbm/web lint",
     "typecheck": "pnpm -r --if-present typecheck",
     "test": "vitest run",
-
     "db:types": "tsx scripts/generate-types.ts",
-
     "data:download": "tsx services/ingestion/src/cli.ts download",
     "data:import": "tsx services/ingestion/src/cli.ts import",
     "data:update": "tsx services/ingestion/src/cli.ts update",
     "reep:resolve": "tsx services/ingestion/src/cli.ts resolve",
     "quality:check": "tsx services/ingestion/src/cli.ts quality",
     "signals:compute": "tsx services/ingestion/src/cli.ts signals",
-    "ingest:status": "tsx services/ingestion/src/cli.ts status"
+    "ingest:status": "tsx services/ingestion/src/cli.ts status",
+    "apifootball:test": "tsx scripts/test-apifootball.ts"
   },
   "devDependencies": {
     "@types/node": "^22.15.3",
