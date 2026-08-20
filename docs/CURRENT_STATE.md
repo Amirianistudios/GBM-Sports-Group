@@ -1,10 +1,26 @@
 # Current state
 
-Last verified: 2026-08-19. Every number below was read from the live project or
+Last verified: 2026-08-20. Every number below was read from the live project or
 the repository, not carried over from a previous document.
 
 Read this file and `CLAUDE.md` first. They should be enough to continue without
-re-deriving the project.
+re-deriving the project. The audit that re-verified everything is
+[`GBM_CURRENT_STATE_AUDIT.md`](GBM_CURRENT_STATE_AUDIT.md); the data-execution
+plan now in flight is
+[`GBM_DATA_IMPLEMENTATION_PLAN.md`](GBM_DATA_IMPLEMENTATION_PLAN.md).
+
+**Headline change on 2026-08-20:** the pipeline has now run end-to-end — against
+a local Supabase stack (Docker, Postgres 17, all migrations, production's grant
+model) rather than production, which is one repository secret away. The staged
+run imported 2,120 players with 64,048 valuations, 22,192 transfers and 27,597
+season-stat rows, resolved 99.7% of them across up to 9 providers through the
+Reep v1 register, recomputed 1,111 discovery signals, and passed the end-to-end
+verify (`pnpm ingest:verify`) on a real player. Three defects were found by
+execution and fixed: a competition_tier enum value the schema never defined, a
+season-stats upsert collision on NULL dimensions, and Reep v1's per-provider
+bridge namespaces (`transfermarkt|spieler`, not `player`). Production still
+holds the 30 sample players until the staged import workflow can run — see
+*Next* below.
 
 ## Where things live
 
@@ -24,8 +40,14 @@ Verified from the repository root:
 | `pnpm install` | passes — 5 workspace projects |
 | `pnpm typecheck` | passes — all 4 packages |
 | `pnpm lint` | passes — 0 errors, 6 warnings |
-| `pnpm test` | passes — 14 tests, 2 files |
+| `pnpm test` | passes — 19 tests, 3 files |
 | `pnpm build` | passes — 12 routes compiled |
+
+The five gates are now mechanical: `.github/workflows/ci.yml` runs them on
+every push and pull request (all runs green so far). `data-refresh.yml` is the
+weekly scheduled pipeline; `staged-import-once.yml` is a push-triggered
+bootstrap for the first controlled production import. Both need the two
+repository secrets named below.
 
 ### What had broken the deployment
 
@@ -105,6 +127,7 @@ constraints and hardening the live one has.
 | `20260819130000_ingestion_idempotency` | Natural keys for re-import, data-confidence function |
 | `20260819130100_discovery_signals` | Reproducible signal computation |
 | `20260819130200_harden_views_and_functions` | Closes the anonymous read path (below) |
+| `20260820120000_season_stats_idempotency` | NULLS NOT DISTINCT natural key for player_season_stats (applied to hosted 2026-08-20) |
 
 ## Security
 
@@ -140,21 +163,44 @@ Twelve routes, all building: `/`, `/login`, `/players`, `/players/[id]`,
 Not yet verified: rendering against the deployed environment, and the mobile
 viewport pass (390×844, 430×932, 768×1024, 1440×900).
 
-## Ingestion service — built, not yet run
+## Ingestion service — proven end-to-end (locally)
 
-`services/ingestion` is new in this session and has not touched the database.
+`services/ingestion` has now executed the full pipeline against a scratch
+Supabase stack (Docker: `supabase start`, all 12 migrations, the production
+sample seeds, production's legacy grant model via
+`auto_expose_new_tables = true` in `supabase/config.toml`).
 
 | Command | Does |
 |---|---|
-| `pnpm data:download` | Fetches per-table `.csv.gz` from the dataset's R2 bucket; writes `data/manifests/transfermarkt.json` |
-| `pnpm data:import` | Normalises into the canonical model, reconciling through `*_external_ids` so re-runs update rather than duplicate |
-| `pnpm reep:resolve` | Joins the Reep v0 register on Transfermarkt id to attach Sofascore, FotMob, Wyscout, FBref, Understat, BeSoccer, SportMonks, API-Football, Impect and Wikidata ids |
+| `pnpm ingest:preflight` | Credentials, schema shape, provider seed, upstream reachability — fails fast with named causes |
+| `pnpm data:download` | Fetches per-table `.csv.gz` from the dataset's R2 bucket (now incl. games + appearances); writes `data/manifests/transfermarkt.json` |
+| `pnpm data:import` | Normalises into the canonical model, reconciling through `*_external_ids` so re-runs update rather than duplicate; aggregates appearances into counting season statistics (`--skip-stats` to omit) |
+| `pnpm reep:resolve` | Joins the **Reep v1** register (weekly releases, checksum-verified, pinned in `data/manifests/reep.json`) to attach Transfermarkt, Wyscout, SportMonks, API-Football, StatsBomb, Understat and FBref ids at confidence 0.99 |
 | `pnpm signals:compute` | Recomputes discovery signals set-based in SQL |
-| `pnpm quality:check` | Ten data-quality checks |
+| `pnpm quality:check` | Twelve data-quality checks |
+| `pnpm ingest:verify` | The success criterion as a command: ≥1 player with identity, ≥2 providers, club, position, market history and statistics — exits non-zero otherwise |
 | `pnpm ingest:status` | Recent runs and row counts |
 
 Every writing command opens an `ingestion_runs` row and closes it even on
 failure, so the database records what happened.
+
+Rehearsal results (2026-08-20, staged `--max-players 2000`, dataset
+2026-08-05, Reep release `20260820T103440Z`):
+
+| Measure | Result |
+|---|---:|
+| players (120 pre-seeded + 2,000 imported) | 2,120 |
+| market_values / transfers / player_season_stats | 64,048 / 22,192 / 27,597 |
+| seasons created | 538 |
+| players matched in Reep v1 | 2,114 (99.7%) |
+| identities written (9 providers max/player) | 13,240 |
+| current discovery signals | 1,111 |
+| `ingest:verify` | **PASS** — Lukáš Hrádecký: 9 providers, 38 valuations, 39 stat rows, 8 transfers |
+
+Idempotency held under re-runs: second import produced +0 new entities, 2,000
+updates, identical valuation/transfer counts, and representation rows were
+reconfirmed rather than re-inserted. The run ledger recorded the two mid-run
+failures as FAILED with 1 error each — observability behaving as designed.
 
 ### Dataset
 
@@ -170,20 +216,25 @@ research queue.
 
 ## Known gaps
 
-1. Cross-provider identity is still unproven — every player has exactly one
-   provider id. `pnpm reep:resolve` exists to fix this but has not been run.
-2. No ingestion has run against the database; `ingestion_runs` is still 0.
-   The pipeline's SQL side is now proven, its write path is not.
-3. `.env.example` could not be written: the local permission configuration
-   blocks all `.env*` paths, for reading and writing alike.
-   `docs/DEPLOYMENT.md` holds the authoritative variable-name list meanwhile.
-4. `gh` and `vercel` CLIs are not installed on the development machine, so
-   deployment state cannot be read from here.
-5. No provider adapters beyond Wyscout (unconfigured, deliberately out of
-   scope) and Reep.
-6. Only unit tests exist. Nothing integration-tests the importer against a
-   real database, which is how the SQL defects below reached the repository in
-   the first place.
+1. **Production has not received the staged import yet.** The pipeline is
+   proven on the local stack, the workflows exist, but the two repository
+   secrets (`NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`) are not
+   configured, so the staged-import workflow fails at preflight — loudly,
+   naming them. Production therefore still holds the 30 sample players.
+2. The integration rehearsal is a documented manual procedure
+   (`supabase start` → seeds → pipeline), not yet a CI job. Wiring the local
+   stack into CI is the next hardening step.
+3. Sofascore, FotMob and Wikidata ids are no longer supplied by Reep's curated
+   v1 bridges (they moved to its 0.85-confidence overlay, which GBM does not
+   auto-ingest). New players get neither unless the overlay is admitted
+   through `entity_resolution_candidates` review — a deliberate open decision.
+4. API-Football adapter exists and is verified, but the Pro tier ($19/mo)
+   needed for current-season statistics is not funded; season statistics
+   currently come from the dataset's appearances (counting metrics only, no
+   xG). Wyscout remains unconfigured pending a quote.
+5. The dataset's last publish was 2026-08-05 — a 15-day gap against its weekly
+   cadence, consistent with the upstream scraper-block commits. The weekly
+   workflow reports staleness rather than failing on it.
 
 ### Defects found and fixed after first commit
 
@@ -230,10 +281,18 @@ Two findings change the roadmap:
 
 ## Next
 
-1. Confirm the Vercel deployment triggered by the current `main` commit.
-2. Run `pnpm data:import --max-players 2000` as a staged first real ingestion,
-   then `pnpm reep:resolve`. This is the step that turns 30 sample players into
-   a real multi-source dataset and finally populates `ingestion_runs`.
-3. Prove one player end-to-end across providers on the profile page.
-4. Add an integration test that runs the importer against a scratch database.
-5. Schedule the weekly refresh via GitHub Actions.
+1. **Add the two repository secrets** (`NEXT_PUBLIC_SUPABASE_URL`,
+   `SUPABASE_SERVICE_ROLE_KEY`) under GitHub → Settings → Secrets and
+   variables → Actions. This is the only step requiring the project owner.
+2. Change `.github/import-trigger` on the working branch (any edit) — the
+   staged-import workflow then runs the rehearsed pipeline against production
+   and finishes with `ingest:verify`.
+3. Verify production with `pnpm ingest:status` / SQL, then open the profile
+   page of a multi-provider player.
+4. Merge the working branch to `main` so the weekly `data-refresh.yml`
+   schedule becomes active (scheduled workflows only run from the default
+   branch), then delete `staged-import-once.yml` and its trigger file.
+5. Scale in steps (10,000 → full) by dispatching `data-refresh.yml` with
+   `max_players`, or let the weekly run carry increments.
+6. Decide API-Football Pro ($19/mo) for current-season statistics and injury
+   histories; request the Wyscout quote for advanced metrics.

@@ -83,18 +83,18 @@ Both are read lazily by `apps/web/src/lib/supabase/env.ts`. If either is missing
 | `GBM_USER_AGENT` | Identifies GBM to public sources that ask for a contact header. |
 | `WYSCOUT_*` | Not configured. No code path requires it; the application builds and runs without it. |
 
-> `.env.example` could not be written from this environment — the local permission
-> configuration blocks all `.env*` paths. The table above is the authoritative
-> list of variable names until that file is updated by hand.
+> `.env.example` at the repository root is the fill-in template for these
+> names. The ingestion pipeline in GitHub Actions reads
+> `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` from repository
+> secrets (Settings → Secrets and variables → Actions), never from a file.
 
 ## Database migrations
 
-Migrations in `supabase/migrations/` are the reproducible definition of the schema. Apply them with the Supabase CLI or dashboard; they are not applied by the build.
+Migrations in `supabase/migrations/` are the reproducible definition of the
+schema. Apply them with the Supabase CLI or dashboard; they are not applied by
+the build. All twelve are applied to the hosted project as of 2026-08-20 —
+`docs/CURRENT_STATE.md` tracks exactly which are live.
 
-Pending application to the hosted project at the time of writing:
-
-- `20260819125000_analytical_views.sql`
-- `20260819130000_ingestion_idempotency.sql`
-- `20260819130100_discovery_signals.sql`
-
-See `docs/CURRENT_STATE.md` for exactly which are live.
+For local development, `supabase start` (Docker) boots a faithful scratch
+stack and applies every migration; `supabase db reset` re-creates it. This is
+how the ingestion pipeline is rehearsed before it touches production.
