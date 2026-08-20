@@ -1,0 +1,56 @@
+{
+  "provider": "TRANSFERMARKT_DATASET",
+  "source": "https://github.com/dcaribou/transfermarkt-datasets",
+  "datasetVersion": "2026-08-05",
+  "fetchedAt": "2026-08-20T11:57:06.709Z",
+  "tables": [
+    {
+      "table": "countries",
+      "bytes": 2694,
+      "lastModified": "Wed, 05 Aug 2026 07:15:01 GMT",
+      "etag": "\"1ecdbd003070a7de8d29b5ef98f75aa1\""
+    },
+    {
+      "table": "competitions",
+      "bytes": 2139,
+      "lastModified": "Wed, 05 Aug 2026 07:15:00 GMT",
+      "etag": "\"c34dc032e67ac93329153e9c8c29b69b\""
+    },
+    {
+      "table": "clubs",
+      "bytes": 48683,
+      "lastModified": "Wed, 05 Aug 2026 07:15:00 GMT",
+      "etag": "\"212820c301c2a08589a7e6283c1e3b14\""
+    },
+    {
+      "table": "players",
+      "bytes": 4160452,
+      "lastModified": "Wed, 05 Aug 2026 07:15:08 GMT",
+      "etag": "\"bebf7c1a1582186e125c5114e7804452\""
+    },
+    {
+      "table": "player_valuations",
+      "bytes": 6869624,
+      "lastModified": "Wed, 05 Aug 2026 07:15:07 GMT",
+      "etag": "\"699b7f2116857991753c77977f41e2be\""
+    },
+    {
+      "table": "transfers",
+      "bytes": 5433917,
+      "lastModified": "Wed, 05 Aug 2026 07:15:09 GMT",
+      "etag": "\"efce22bbf6d09e278b76030add4050cb\""
+    },
+    {
+      "table": "games",
+      "bytes": 4708534,
+      "lastModified": "Wed, 05 Aug 2026 07:15:06 GMT",
+      "etag": "\"e1fc5c660de2839f112a136dbe094357\""
+    },
+    {
+      "table": "appearances",
+      "bytes": 42857792,
+      "lastModified": "Wed, 05 Aug 2026 07:14:59 GMT",
+      "etag": "\"97f0e055b9947b430f010ddea2fe681d-6\""
+    }
+  ]
+}
