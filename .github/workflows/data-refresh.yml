@@ -86,13 +86,24 @@ jobs:
           pnpm data:download ${{ inputs.skip_stats && '--skip-stats' || '' }} | tee logs-download.txt
           pnpm data:import --max-players ${{ inputs.max_players }} ${{ inputs.skip_stats && '--skip-stats' || '' }} | tee logs-import.txt
 
-      # Scheduled / full run: data:update reads the last ingested dataset
-      # version from the run ledger in the database (a fresh runner has no
-      # local state) and no-ops the import when the published dataset is
-      # unchanged. Identity resolution still runs below either way, because
-      # the Reep register refreshes weekly on its own cadence.
+      # Scheduled run: data:update reads the last ingested dataset version
+      # from the run ledger in the database (a fresh runner has no local
+      # state) and no-ops the import when the published dataset is unchanged.
+      # Identity resolution still runs below either way, because the Reep
+      # register refreshes weekly on its own cadence.
+      #
+      # The cap holds the unattended schedule at the staged import's scope:
+      # scaling past 2,000 players is a deliberate act (data plan step —
+      # 10,000 next, then full), done by dispatching this workflow with a
+      # higher cap or an empty one, or by raising the number here.
+      - name: Update (scheduled, staged 2,000 scope)
+        if: github.event_name == 'schedule'
+        run: pnpm data:update --max-players 2000 | tee logs-import.txt
+
+      # Manual full run: dispatching with an empty cap is the deliberate
+      # scale-up to the complete dataset.
       - name: Update (full, when dataset is newer)
-        if: github.event_name == 'schedule' || inputs.max_players == ''
+        if: github.event_name == 'workflow_dispatch' && inputs.max_players == ''
         run: pnpm data:update ${{ inputs.force && '--force' || '' }} ${{ inputs.skip_stats && '--skip-stats' || '' }} | tee logs-import.txt
 
       - name: Resolve identities (Reep v1)

@@ -45,10 +45,13 @@ Verified from the repository root:
 
 The five gates are now mechanical: `.github/workflows/ci.yml` runs them on
 every push and pull request (all runs green so far). `data-refresh.yml` is the
-weekly scheduled pipeline; `staged-import-once.yml` is a push-triggered
-bootstrap for the first controlled production import. The Supabase project URL
-is baked into both (public by design); each needs exactly **one** repository
-secret: `SUPABASE_SERVICE_ROLE_KEY`.
+weekly scheduled pipeline; its unattended schedule runs `data:update
+--max-players 2000`, holding the staged scope until scaling is deliberately
+authorized (dispatch the workflow with a higher or empty cap to scale).
+`staged-import-once.yml`, the push-triggered bootstrap for the first
+controlled production import, served its purpose (run #4) and was deleted
+along with its trigger file. The Supabase project URL is baked in (public by
+design); the one repository secret is `SUPABASE_SERVICE_ROLE_KEY`.
 
 ### What had broken the deployment
 
@@ -328,11 +331,13 @@ Two findings change the roadmap:
 2. ~~Review the staged data in the app~~ — done 2026-08-20: 27-player
    scouting validation (`STAGED_DATA_VALIDATION.md`) plus the Playwright
    pass above.
-3. Merge the working branch to `main` so the weekly `data-refresh.yml`
-   schedule becomes active (scheduled workflows only run from the default
-   branch), then delete `staged-import-once.yml` and its trigger file.
-4. Scale in steps (10,000 → full ~22k active) by touching the import trigger
-   with a higher cap or dispatching `data-refresh.yml`, or let the weekly run
-   carry increments — only after the staged data has been reviewed.
+3. ~~Merge the working branch to `main`~~ — done 2026-08-20 (fast-forward;
+   fixes the failing Vercel production build, deploys the scouting UI, and
+   activates the weekly schedule — capped at the staged 2,000 scope).
+   ~~Delete `staged-import-once.yml` and its trigger file~~ — done.
+4. Scale in steps (10,000 → full ~22k active) by dispatching
+   `data-refresh.yml` with a higher cap (empty = full dataset), or by raising
+   the scheduled cap in the workflow — a deliberate act, not the unattended
+   default.
 5. Decide API-Football Pro ($19/mo) for current-season statistics and injury
    histories; request the Wyscout quote for advanced metrics.
