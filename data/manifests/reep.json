@@ -1,0 +1,19 @@
+{
+  "provider": "REEP",
+  "registerVersion": "v1",
+  "stamp": "20260820T103440Z",
+  "releaseGeneratedAt": null,
+  "fetchedAt": "2026-08-20T12:09:17.654Z",
+  "files": {
+    "csv/bridges.csv.gz": {
+      "bytes": 91123286,
+      "rows": 5242726,
+      "sha256": "763db5a720ec8c39d32f852644aad2b74a4f4f73775e03bc51ccbce75f25f66e"
+    },
+    "csv/redirects.csv.gz": {
+      "bytes": 24108,
+      "rows": 1248,
+      "sha256": "b07c5279290a89aecd2b54d8df03fe9a2f3a4afb5d983f5ad50ea2dcac522533"
+    }
+  }
+}

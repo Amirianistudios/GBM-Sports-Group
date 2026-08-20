@@ -127,7 +127,11 @@ async function latestRelease(): Promise<Release> {
   if (!files['csv/bridges.csv.gz']) {
     throw new Error(`Reep release ${stamp} does not list csv/bridges.csv.gz — refusing to guess its location.`);
   }
-  return { stamp, generatedAt: (release.release_generated_at as string) ?? null, files };
+  // The generation timestamp lives on latest.json; the release manifest
+  // itself only carries the file inventory.
+  const generatedAt =
+    (latest.release_generated_at as string) ?? (release.release_generated_at as string) ?? null;
+  return { stamp, generatedAt, files };
 }
 
 async function sha256Of(path: string): Promise<string> {
