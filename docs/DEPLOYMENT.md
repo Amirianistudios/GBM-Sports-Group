@@ -51,9 +51,9 @@ live probes — see [`VERCEL_ARCHITECTURE_AUDIT.md`](VERCEL_ARCHITECTURE_AUDIT.m
 |---|---|
 | Project | `gbm-sports-group` (`prj_to6e5a4jT2170ZN244pTvh7NDEOx`) |
 | Team | `amirianantoni10-9420s-projects` |
-| Root Directory | repository root (monorepo) |
-| Production deployment | `https://gbm-sports-group-git-main-amirianantoni10-9420s-projects.vercel.app`, behind Vercel Authentication (platform SSO in front of the app's own Supabase auth) |
-| Not this project | `gbm-sports-group.vercel.app` (returns `DEPLOYMENT_NOT_FOUND`) |
+| Root Directory | `apps/web` (set in the dashboard 2026-08-20; the earlier repo-root setting made every production build fail at output collection, which is why no production deployment existed) |
+| Production domain | `https://gbm-sports-group.vercel.app` — the project's permanent default domain. The 2026-08-20 morning audit read its `DEPLOYMENT_NOT_FOUND` as "another project's alias"; that was wrong — the 404 only meant no production deployment existed yet. The domain always points at the latest ready production deployment |
+| Normal extra URLs | `…-git-main-….vercel.app` (per-branch alias, follows the newest main deployment) and one immutable per-deployment URL per build. Both are standard Vercel aliases; neither should be deleted |
 
 **Preview deployments are disabled declaratively and the behaviour is
 verified**: `vercel.json` (repository root, mirrored in `apps/web/`) carries
