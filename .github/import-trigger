@@ -1,0 +1,9 @@
+Staged production import trigger.
+
+Changing this file on the working branch fires
+.github/workflows/staged-import-once.yml — the first controlled
+--max-players 2000 import against the production database.
+
+Trigger 1: 2026-08-20, after the local dress rehearsal passed end-to-end
+(2,120 players, 64,048 valuations, 22,192 transfers, 27,597 season-stat
+rows, 13,240 Reep v1 identities, verify PASS on Lukas Hradecky).
