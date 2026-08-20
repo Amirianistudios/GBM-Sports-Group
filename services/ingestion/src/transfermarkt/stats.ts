@@ -12,11 +12,13 @@
  *      rest stay NULL until a licensed provider supplies them. Nothing is
  *      derived or imputed.
  *
- *   2. A game or competition the reference data cannot resolve does not stop
- *      the aggregate — the row is written with the unresolved dimension NULL
- *      and the miss is counted in the run summary. The natural key is
- *      NULLS NOT DISTINCT (migration 20260820120000), so those rows still
- *      update in place on re-import instead of duplicating.
+ *   2. Nothing is fabricated for data the reference cannot place. A cell in a
+ *      competition the reference data does not describe is skipped and counted
+ *      in the run summary (a season-less row could not be kept idempotent);
+ *      a cell whose club is unknown keeps its season and competition and is
+ *      stored with NULL club. The natural key is NULLS NOT DISTINCT
+ *      (migration 20260820120000), so NULL-club rows update in place on
+ *      re-import instead of duplicating.
  *
  * The season label follows the dataset's own convention: `games.season` is
  * the starting year of the European season, so 2024 becomes '2024/2025' —
@@ -227,18 +229,50 @@ export async function importSeasonStats(
   let unresolvedClub = 0;
   const players = new Set<string>();
 
-  const rows = outcome.aggregates.map((a) => {
+  // Cells are re-keyed by their RESOLVED dimensions before writing, because
+  // the database's natural key is on resolved ids and a single upsert batch
+  // may not touch one row twice — the first rehearsal run failed on exactly
+  // that when two unresolved dimensions collapsed onto the same NULL.
+  //
+  // A cell whose COMPETITION cannot be resolved is skipped and counted, not
+  // stored: without a competition there is no season row, and a season-less
+  // NULL row cannot keep two different years apart under the natural key.
+  // (Measured against the 2026-08-05 release this drops ~0.9% of appearance
+  // rows — four cup codes absent from competitions.csv.) A cell whose CLUB
+  // cannot be resolved keeps its season and competition and is stored with
+  // NULL club — a well-defined "clubs the reference data does not describe"
+  // bucket, merged per season.
+  const merged = new Map<string, Record<string, unknown>>();
+  for (const a of outcome.aggregates) {
+    const competitionId = a.competitionTm ? competitionIds.get(a.competitionTm) : undefined;
+    if (!competitionId) {
+      unresolvedCompetition += 1;
+      continue;
+    }
+    const seasonId = seasonIds.get(`${competitionId}|${seasonName(a.season)}`);
+    if (!seasonId) {
+      // ensureSeasons created every (competition, season) pair above; a miss
+      // here is a programming error, not a data condition.
+      throw new Error(`season row missing for competition ${competitionId} ${seasonName(a.season)}`);
+    }
+
     const playerId = playerIds.get(a.playerTm)!;
     players.add(playerId);
-    const competitionId = a.competitionTm ? (competitionIds.get(a.competitionTm) ?? null) : null;
-    if (a.competitionTm && !competitionId) unresolvedCompetition += 1;
     const clubId = a.clubTm ? (clubIds.get(a.clubTm) ?? null) : null;
     if (a.clubTm && !clubId) unresolvedClub += 1;
-    const seasonId = competitionId
-      ? (seasonIds.get(`${competitionId}|${seasonName(a.season)}`) ?? null)
-      : null;
 
-    return {
+    const key = `${playerId}|${seasonId}|${competitionId}|${clubId ?? ''}`;
+    const existing = merged.get(key);
+    if (existing) {
+      existing.matches_played = (existing.matches_played as number) + a.matches;
+      existing.minutes_played = (existing.minutes_played as number) + a.minutes;
+      existing.goals = (existing.goals as number) + a.goals;
+      existing.assists = (existing.assists as number) + a.assists;
+      existing.yellow_cards = (existing.yellow_cards as number) + a.yellows;
+      existing.red_cards = (existing.red_cards as number) + a.reds;
+      continue;
+    }
+    merged.set(key, {
       player_id: playerId,
       season_id: seasonId,
       competition_id: competitionId,
@@ -252,8 +286,9 @@ export async function importSeasonStats(
       red_cards: a.reds,
       retrieved_at: now,
       updated_at: now,
-    };
-  });
+    });
+  }
+  const rows = [...merged.values()];
 
   const written = await upsertChunked('player_season_stats', rows, {
     onConflict: 'player_id,season_id,competition_id,club_id,provider_code',

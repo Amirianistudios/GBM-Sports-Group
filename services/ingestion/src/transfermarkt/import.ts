@@ -171,6 +171,12 @@ async function importCompetitions(
   return map;
 }
 
+/**
+ * Maps the dataset's competition `type` onto the competition_tier enum.
+ * Values must exist in the enum — the first rehearsal import died on a
+ * 'DOMESTIC_CUP' that the schema never defined, invisible to typecheck
+ * because the column type only exists in the database.
+ */
 function tierOf(type: string | null): string {
   switch ((type ?? '').toLowerCase()) {
     case 'first_tier':
@@ -179,10 +185,14 @@ function tierOf(type: string | null): string {
       return 'SECOND_TIER';
     case 'third_tier':
       return 'THIRD_TIER';
+    case 'fourth_tier':
+      return 'FOURTH_TIER';
     case 'domestic_cup':
     case 'domestic_super_cup':
-      return 'DOMESTIC_CUP';
+      return 'CUP';
     case 'international_cup':
+      return 'CONTINENTAL';
+    case 'international_super_cup':
       return 'CONTINENTAL';
     default:
       return 'UNKNOWN';
