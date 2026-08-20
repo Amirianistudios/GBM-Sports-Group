@@ -20,6 +20,7 @@ import { collect, date, findTable, int, num, readRows, str, type Row } from '../
 import { foot, normalizeName, parseFee, tmPlayerUrl } from '../normalize.js';
 import { admin, selectAll, upsertChunked } from '../supabase.js';
 import { paths } from '../env.js';
+import { importSeasonStats } from './stats.js';
 import type { IngestionRun } from '../run.js';
 
 const PROVIDER = 'TRANSFERMARKT_DATASET';
@@ -54,6 +55,8 @@ export interface ImportOptions {
   /** Skip the large history tables when only identities are wanted. */
   skipValuations?: boolean;
   skipTransfers?: boolean;
+  /** Skip the appearances → season statistics aggregation. */
+  skipStats?: boolean;
   log?: Log;
 }
 
@@ -70,6 +73,7 @@ export async function importTransfermarkt(run: IngestionRun, opts: ImportOptions
 
   if (!opts.skipValuations) await importValuations(run, playerIds, clubIds, log);
   if (!opts.skipTransfers) await importTransfers(run, playerIds, clubIds, log);
+  if (!opts.skipStats) await importSeasonStats(run, playerIds, clubIds, competitionIds, log);
 
   return { players: playerIds.size, clubs: clubIds.size, competitions: competitionIds.size };
 }

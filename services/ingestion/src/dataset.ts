@@ -47,6 +47,9 @@ export const CORE_TABLES: TmTable[] = [
   'transfers',
 ];
 
+/** Additional tables required by the season-statistics aggregation. */
+export const STATS_TABLES: TmTable[] = ['games', 'appearances'];
+
 export interface TableStamp {
   table: string;
   bytes: number;

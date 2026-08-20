@@ -13,10 +13,12 @@
  * Every command that writes opens an `ingestion_runs` row, so the database
  * always records what happened even when a run dies halfway.
  */
-import { CORE_TABLES, checkForUpdate, download, readManifest } from './dataset.js';
+import { CORE_TABLES, STATS_TABLES, checkForUpdate, download, readManifest } from './dataset.js';
 import { importTransfermarkt } from './transfermarkt/import.js';
 import { resolveThroughReep } from './reep/resolve.js';
 import { runQualityChecks } from './quality.js';
+import { runPreflight } from './preflight.js';
+import { verifyEndToEnd } from './verify.js';
 import { IngestionRun } from './run.js';
 import { admin } from './supabase.js';
 
@@ -32,13 +34,17 @@ function option(name: string): number | undefined {
   return Number.isFinite(v) ? v : undefined;
 }
 
+function tablesToDownload() {
+  return flag('skip-stats') ? CORE_TABLES : [...CORE_TABLES, ...STATS_TABLES];
+}
+
 async function cmdDownload(): Promise<void> {
   log('Transfermarkt dataset — checking published version');
   const status = await checkForUpdate();
   log(`  published        ${status.remoteVersion}`);
   log(`  ingested         ${status.localVersion ?? 'never'}`);
   log('');
-  const manifest = await download(CORE_TABLES, log);
+  const manifest = await download(tablesToDownload(), log);
   log('');
   log(`Dataset ${manifest.datasetVersion} ready in data/transfermarkt/`);
 }
@@ -50,6 +56,7 @@ async function cmdImport(): Promise<void> {
     sinceSeason: option('since-season'),
     skipValuations: flag('skip-valuations'),
     skipTransfers: flag('skip-transfers'),
+    skipStats: flag('skip-stats'),
     log,
   };
 
@@ -142,7 +149,30 @@ async function cmdStatus(): Promise<void> {
   }
 }
 
+async function cmdPreflight(): Promise<void> {
+  log('Preflight');
+  const checks = await runPreflight({ offline: flag('offline') });
+  for (const c of checks) {
+    log(`  ${c.ok ? 'ok  ' : 'FAIL'}  ${c.name.padEnd(32)} ${c.detail}`);
+  }
+  const failed = checks.filter((c) => !c.ok);
+  log('');
+  if (failed.length) {
+    log(`${failed.length} preflight check(s) failed.`);
+    process.exit(1);
+  }
+  log('Ready.');
+}
+
+async function cmdVerify(): Promise<void> {
+  log('End-to-end verification');
+  const report = await verifyEndToEnd(log);
+  if (!report.ok) process.exit(1);
+}
+
 async function cmdUpdate(): Promise<void> {
+  await cmdPreflight();
+  log('');
   const status = await checkForUpdate();
   log(`Published ${status.remoteVersion}; last ingested ${status.localVersion ?? 'never'}`);
   if (!status.hasUpdate && !flag('force')) {
@@ -166,6 +196,8 @@ const COMMANDS: Record<string, () => Promise<void>> = {
   signals: cmdSignals,
   quality: cmdQuality,
   status: cmdStatus,
+  preflight: cmdPreflight,
+  verify: cmdVerify,
 };
 
 const command = process.argv[2];
