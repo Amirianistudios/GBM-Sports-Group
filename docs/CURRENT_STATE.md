@@ -9,18 +9,18 @@ re-deriving the project. The audit that re-verified everything is
 plan now in flight is
 [`GBM_DATA_IMPLEMENTATION_PLAN.md`](GBM_DATA_IMPLEMENTATION_PLAN.md).
 
-**Headline change on 2026-08-20:** the pipeline has now run end-to-end — against
-a local Supabase stack (Docker, Postgres 17, all migrations, production's grant
-model) rather than production, which is one repository secret away. The staged
-run imported 2,120 players with 64,048 valuations, 22,192 transfers and 27,597
-season-stat rows, resolved 99.7% of them across up to 9 providers through the
-Reep v1 register, recomputed 1,111 discovery signals, and passed the end-to-end
-verify (`pnpm ingest:verify`) on a real player. Three defects were found by
-execution and fixed: a competition_tier enum value the schema never defined, a
-season-stats upsert collision on NULL dimensions, and Reep v1's per-provider
-bridge namespaces (`transfermarkt|spieler`, not `player`). Production still
-holds the 30 sample players until the staged import workflow can run — see
-*Next* below.
+**Headline change on 2026-08-20: the staged production import has run and
+verified.** After a full dress rehearsal on a local Supabase stack (which
+surfaced and fixed three defects: a competition_tier enum value the schema
+never defined, a season-stats upsert collision on NULL dimensions, and Reep
+v1's per-provider bridge namespaces), GitHub Actions run
+`staged-import-once #4` executed the rehearsed pipeline against production:
+**2,000 players imported (2,030 total with the 30 originals updated in
+place), 62,762 valuations, 21,685 transfers, 26,593 season-stat rows, 99.8%
+resolved through Reep v1 across up to 9 providers, 1,026 current discovery
+signals, 3/3 ingestion runs SUCCESS with 0 errors, `ingest:verify` PASS.**
+All 30 pre-import players, 235 pre-import valuations and 30 representation
+records verified still present; policies, RLS and views verified unchanged.
 
 ## Where things live
 
@@ -74,37 +74,41 @@ Also repaired in the same pass:
 
 ## Database
 
-48 tables. Row counts as at 2026-08-19:
+48 tables. Row counts as at 2026-08-20, after the staged production import
+(GitHub Actions `staged-import-once` run 4, dataset release 2026-08-05, Reep
+release `20260820T103440Z`):
 
 | Table | Rows | | Table | Rows |
 |---|---:|---|---|---:|
-| players | 30 | | source_facts | 90 |
-| player_external_ids | 30 | | source_records | 0 |
-| clubs | 50 | | transfers | **0** |
-| competitions | 10 | | matches | 0 |
-| countries | 35 | | player_season_stats | 0 |
-| market_values | 235 | | entity_resolution_candidates | 0 |
-| contracts | 30 | | discovery_signals | 31 |
-| representation_records | 30 | | player_events | 0 |
-| watchlists | 0 | | alerts | 0 |
-| scouting_reports | 0 | | ingestion_runs | **0** |
+| players | **2,030** | | player_season_stats | **26,593** |
+| player_external_ids | **14,651** | | seasons | 538 |
+| clubs | 796 | | transfers | **21,685** |
+| competitions | 65 | | matches | 0 |
+| countries | 130 | | source_facts | 90 |
+| market_values | **62,762** | | source_records | 0 |
+| contracts | 1,470 | | entity_resolution_candidates | 0 |
+| representation_records | 2,030 | | discovery_signals (current) | **1,026** |
+| watchlists | 0 | | alerts / player_events | 0 |
+| scouting_reports | 0 | | ingestion_runs | **3 (all SUCCESS, 0 errors)** |
 | auth users | 1 | | ingestion_errors | 0 |
 
 What those numbers mean:
 
-- The 30 players are a hand-generated sample applied as SQL during the initial
-  build. All 30 carry exactly one external id: `TRANSFERMARKT_DATASET`. **No
-  cross-provider resolution has happened yet.**
-- `transfers` is 0 because the generated `data/sql/04_transfers_01.sql` was
-  never applied.
-- `ingestion_runs` is 0 because no pipeline had existed. The service now exists
-  but has not been run against the database.
-- The 31 `discovery_signals` are now genuinely computed. The hand-seeded
-  originals were retired (not deleted) with their provenance stamped into
-  `evidence`, and replaced by `gbm_compute_discovery_signals()`: 1
-  CONTRACT_EXPIRING, 16 RAPID_VALUE_GROWTH, 14 UNREPRESENTED_HIGH_POTENTIAL.
-  Running it twice returns identical counts and zero duplicate player/type
-  pairs, so it is genuinely idempotent.
+- The 2,030 players are the 2,000 newest-active players from the Transfermarkt
+  dataset plus the original 30 samples, which carried real Transfermarkt ids
+  and were **updated in place, not duplicated** (verified: exactly 30 players
+  predate the import; all 235 pre-import valuations retained).
+- **2,026 of 2,030 players (99.8%) are resolved through the Reep v1 register**
+  — up to 9 provider identities each (Transfermarkt live-site, Wyscout,
+  SportMonks, API-Football, StatsBomb, Understat, FBref, plus the Reep entity
+  id beside the dataset id).
+- Season statistics are counting metrics aggregated from the dataset's
+  appearances table (matches, minutes, goals, assists, cards). xG and other
+  advanced columns are NULL by design until a licensed provider exists.
+- `matches` is 0 by design: match-level import is a deliberate later
+  increment; season aggregates carry the current requirement.
+- Discovery signals are computed over the full population; the pre-import
+  signal history remains retired-in-place with provenance.
 
 ### Migrations
 
@@ -217,12 +221,11 @@ research queue.
 
 ## Known gaps
 
-1. **Production has not received the staged import yet.** The pipeline is
-   proven on the local stack and the workflows exist, but the single required
-   repository secret (`SUPABASE_SERVICE_ROLE_KEY`) is not configured, so the
-   staged-import workflow fails at preflight — loudly, naming it (verified
-   three times, most recently at head `bd5d3ad`). Production therefore still
-   holds the 30 sample players.
+1. **Scale beyond the staged 2,000 is deliberately not done yet.** The staged
+   import succeeded and verified on 2026-08-20; the full import (~22k active
+   players) is a decision, not a code change — run the weekly workflow or a
+   manual dispatch without `max_players` once satisfied with the staged data.
+   Four of 2,030 players (0.2%) have no Reep v1 match and remain single-source.
 2. The integration rehearsal is a documented manual procedure
    (`supabase start` → seeds → pipeline), not yet a CI job. Wiring the local
    stack into CI is the next hardening step.
@@ -283,19 +286,16 @@ Two findings change the roadmap:
 
 ## Next
 
-1. **Add the one repository secret** `SUPABASE_SERVICE_ROLE_KEY` (Supabase →
-   Project Settings → API Keys) under GitHub → Settings → Secrets and
-   variables → Actions. This is the only step requiring the project owner —
-   the project URL is already baked into the workflows.
-2. Change `.github/import-trigger` on the working branch (any edit) — the
-   staged-import workflow then runs the rehearsed pipeline against production
-   and finishes with `ingest:verify`.
-3. Verify production with `pnpm ingest:status` / SQL, then open the profile
-   page of a multi-provider player.
-4. Merge the working branch to `main` so the weekly `data-refresh.yml`
+1. ~~Add the repository secret~~ — done 2026-08-20; ~~run the staged import~~
+   — done and verified 2026-08-20 (run `staged-import-once #4`).
+2. Review the staged data in the app: open the profile page of a
+   multi-provider player (e.g. Robert Lewandowski — 9 providers, 52
+   valuations, 58 stat rows, 8 transfers).
+3. Merge the working branch to `main` so the weekly `data-refresh.yml`
    schedule becomes active (scheduled workflows only run from the default
    branch), then delete `staged-import-once.yml` and its trigger file.
-5. Scale in steps (10,000 → full) by dispatching `data-refresh.yml` with
-   `max_players`, or let the weekly run carry increments.
-6. Decide API-Football Pro ($19/mo) for current-season statistics and injury
+4. Scale in steps (10,000 → full ~22k active) by touching the import trigger
+   with a higher cap or dispatching `data-refresh.yml`, or let the weekly run
+   carry increments — only after the staged data has been reviewed.
+5. Decide API-Football Pro ($19/mo) for current-season statistics and injury
    histories; request the Wyscout quote for advanced metrics.
