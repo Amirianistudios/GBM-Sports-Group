@@ -10,7 +10,11 @@ rows, 13,240 Reep v1 identities, verify PASS on Lukas Hradecky).
 Outcome: hollow green — the repository secrets are not configured, and the
 pre-pipefail workflow let `| tee` mask the preflight failure.
 
-Trigger 2: 2026-08-20, with pipefail enforced. Expected to FAIL loudly at
-preflight until NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are
-added under Settings → Secrets and variables → Actions. Once they exist,
-change this file again to run the real staged import.
+Trigger 2: 2026-08-20, with pipefail enforced. Outcome: honest red at
+preflight — repository secrets not configured.
+
+Trigger 3: 2026-08-20. The Supabase project URL is now baked into the
+workflow env (public by design), so exactly ONE secret remains required:
+SUPABASE_SERVICE_ROLE_KEY under Settings → Secrets and variables →
+Actions. If it exists by the time this fires, the staged import runs; if
+not, preflight names it and stops.

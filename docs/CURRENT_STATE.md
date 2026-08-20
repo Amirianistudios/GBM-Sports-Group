@@ -28,7 +28,7 @@ holds the 30 sample players until the staged import workflow can run — see
 |---|---|
 | Application source | GitHub `Amirianistudios/GBM-Sports-Group`, branch `main` (private) |
 | Live data + auth | Supabase `GBM Intelligence`, ref `tyzndcjuiffnyhluddce`, eu-west-2, Postgres 17 |
-| Deployment | Vercel, built automatically from `main` only — previews disabled via `vercel.json`; project lives under the owner's Vercel login and its name/domain is unverified from here (see [`VERCEL_ARCHITECTURE_AUDIT.md`](VERCEL_ARCHITECTURE_AUDIT.md)) |
+| Deployment | Vercel project `gbm-sports-group` (team `amirianantoni10-9420s-projects`), production built from `main` only, served behind Vercel Authentication at `gbm-sports-group-git-main-…vercel.app`; branch previews verified skipped via `vercel.json` (see [`VERCEL_ARCHITECTURE_AUDIT.md`](VERCEL_ARCHITECTURE_AUDIT.md)) |
 | Local checkout | `/Users/antoniamirian/gbm-intelligence` |
 
 ## Build status

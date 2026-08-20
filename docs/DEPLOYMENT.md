@@ -42,13 +42,27 @@ If a deployment fails, fix the source, prove `pnpm build` passes locally, commit
 
 Vercel's role is exactly: `main` updates → automatic production deployment.
 It stores no data, runs no backend logic, holds no source of record, and is
-never operated manually. **Preview deployments are disabled declaratively**:
-`vercel.json` (present at the repository root and in `apps/web/`, so it is
-read whichever Root Directory the project uses) carries an `ignoreCommand`
-that skips every non-production build — development branches produce no
-preview builds and no preview URLs, while production builds are unaffected.
-The full audit and the owner-side dashboard checklist are in
-[`VERCEL_ARCHITECTURE_AUDIT.md`](VERCEL_ARCHITECTURE_AUDIT.md).
+never operated manually.
+
+Verified project facts (2026-08-20, from Vercel's own integration output and
+live probes — see [`VERCEL_ARCHITECTURE_AUDIT.md`](VERCEL_ARCHITECTURE_AUDIT.md)):
+
+| Fact | Value |
+|---|---|
+| Project | `gbm-sports-group` (`prj_to6e5a4jT2170ZN244pTvh7NDEOx`) |
+| Team | `amirianantoni10-9420s-projects` |
+| Root Directory | repository root (monorepo) |
+| Production deployment | `https://gbm-sports-group-git-main-amirianantoni10-9420s-projects.vercel.app`, behind Vercel Authentication (platform SSO in front of the app's own Supabase auth) |
+| Not this project | `gbm-sports-group.vercel.app` (returns `DEPLOYMENT_NOT_FOUND`) |
+
+**Preview deployments are disabled declaratively and the behaviour is
+verified**: `vercel.json` (repository root, mirrored in `apps/web/`) carries
+an `ignoreCommand` that skips every non-production build — Vercel's own PR
+comment for a branch push reports the deployment as *Ignored/Skipped*.
+`"github": { "silent": true }` additionally stops Vercel commenting on PRs
+and commits. Development branches therefore produce **no** builds, **no**
+preview URLs and **no** comment noise; pushes to `main` build and deploy
+exactly as before.
 
 ## Build configuration
 

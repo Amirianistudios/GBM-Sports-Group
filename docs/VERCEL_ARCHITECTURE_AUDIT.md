@@ -22,8 +22,8 @@ Vercel    frontend deployment only:  main → production            (stores noth
 | Every push to **every** branch produces a preview deployment | This is Vercel's default behaviour for a Git-connected project; nothing in the repository overrides it (see next row). Today's 13 working-branch pushes will each have produced one |
 | The repository contains **zero Vercel configuration** | No `vercel.json` anywhere, no `.vercel/` directory, stock `next.config.ts`, no Vercel-specific code paths (the only artefacts are create-next-app's default SVGs in `apps/web/public/`) |
 | The application stores **nothing** on Vercel and has no Vercel-specific backend | `apps/web` is a stateless Next.js frontend; every read goes to Supabase at request time through the anon key + RLS; auth is Supabase; there are no API routes writing data, no blob/KV/edge-config usage, no cron. Verified in `GBM_CURRENT_STATE_AUDIT.md` §2.4 |
-| The Vercel **project is not reachable from this session's Vercel connection** | The connected Vercel account (`amirianantoni10-9420's projects`) contains **zero projects**. The real project lives under a different Vercel login (the owner's). Project-level settings — build config, environment variables, production branch, domains — can therefore not be read or changed from here, only documented |
-| `gbm-sports-group.vercel.app` serves `DEPLOYMENT_NOT_FOUND` | The production deployment exists under some other name/domain, or the documented URL was never the real one. The docs' claim of a `gbm-sports-group` project has never been verified from any session (the original machine had no `vercel` CLI; this session's Vercel login cannot see it) |
+| The Vercel **project was located on the second pass** (see §6) | Project `gbm-sports-group`, id `prj_to6e5a4jT2170ZN244pTvh7NDEOx`, team `amirianantoni10-9420s-projects` — the connected team. The connector's authorization excludes this specific project (explicit 403 on deployment listing), which is the one remaining access gap |
+| `gbm-sports-group.vercel.app` serves `DEPLOYMENT_NOT_FOUND` | That global alias is not this project's. The real production deployment serves at `gbm-sports-group-git-main-amirianantoni10-9420s-projects.vercel.app` behind Vercel Authentication (verified: 302 → `vercel.com/sso-api`) |
 
 **Conclusion of the inspection:** the codebase already treats Vercel as
 deployment-only. The deviation from the target architecture is entirely on the
@@ -101,27 +101,33 @@ records requires the project owner in the Vercel dashboard — see §6.
 | Wanting a preview one day | Deliberate: the stated architecture is "main → production, nothing else". If a preview is ever wanted, delete the file on that branch or use the dashboard's per-branch controls |
 | Data pipelines / Supabase | Untouched. The GitHub Actions ingestion workflows have no Vercel involvement; Supabase security was not modified |
 
-## 6. Owner-side items (cannot be done from this session)
+## 6. Execution update — 2026-08-20, second pass
 
-The Vercel project lives under a different Vercel login than the one connected
-here, so these need the project owner in the dashboard — none are required for
-the architecture to hold, the `vercel.json` already enforces the behaviour:
+The five items formerly listed here as owner-side were executed as far as the
+platform's authorization allows, after a discovery that changes §1: **the
+project was located.** Vercel's own bot comment on PR #1 carries the project
+metadata verbatim: project **`gbm-sports-group`**, id
+`prj_to6e5a4jT2170ZN244pTvh7NDEOx`, team **`amirianantoni10-9420s-projects`**
+(`team_95RPwrZUu4shUPvqJPrvTUZH`) — the very team this session's Vercel
+connection belongs to — monorepo, Root Directory = repository root (so the
+root `vercel.json` is the one Vercel reads; the `apps/web` copy is inert
+insurance).
 
-1. **Optional — full preview silence:** Project → Settings → Git → disable
-   preview deployments / limit deployments to the production branch (naming
-   varies by plan). This removes even the "Ignored" records and PR comments.
-2. **Verify the env var set:** exactly `NEXT_PUBLIC_SUPABASE_URL` and
-   `NEXT_PUBLIC_SUPABASE_ANON_KEY`; remove anything else, and confirm no
-   service-role key is present under any name.
-3. **Confirm the production branch is `main`** and note the real production
-   domain (the documented `gbm-sports-group.vercel.app` does not resolve to a
-   deployment).
-4. **Confirm no extra Vercel resources exist** (Blob, KV, Edge Config, Cron,
-   Postgres) — the application uses none; anything found is orphaned and can
-   be deleted.
-5. If the owner prefers Claude to verify these directly in future sessions,
-   connect the Vercel account that owns the project (the currently connected
-   one is empty).
+The connection is team-correct but **project-scoped out**: `get_project` and
+deployment-protection reads return 404, `list_deployments` returns an
+explicit 403 ("You don't have permission to list the deployment"), and the
+protected-URL fetch is refused. The Claude ↔ Vercel connector was authorized
+without access to this project.
+
+Status of the five items:
+
+| # | Item | Status |
+|---|---|---|
+| 1 | Preview deployments disabled for every non-production branch | **VERIFIED working** — from Vercel's own output, not inference: the bot comment for the latest branch push reads *"1 Skipped Deployment … Ignored"* with `nextCommitStatus: IGNORED`. The `vercel.json` `ignoreCommand` is enforcing exactly the target behaviour: branch push → GitHub CI only, no Vercel build. **CHANGED** additionally: `"github": { "silent": true }` now suppresses Vercel's PR/commit comments as well. Dashboard-level "don't even record the skipped deployment" remains **BLOCKED BY AUTHORIZATION** (and has no API tool in the connector regardless); it is cosmetic — nothing is built or published either way. |
+| 2 | Environment variables cleaned and verified | **Codebase side VERIFIED**: the frontend reads exactly `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` (`apps/web/src/lib/supabase/env.ts`), holds no service credentials, and no code path can exfiltrate a server-side variable. Reading/removing variables stored in the Vercel project is **BLOCKED BY AUTHORIZATION** (project scope; the connector also exposes no env-var API). Risk bounding: a stray variable there would be unused by any shipped code. |
+| 3 | Production branch + domain | **VERIFIED from outside**: a production deployment from `main` exists and serves at `gbm-sports-group-git-main-amirianantoni10-9420s-projects.vercel.app`, sitting behind **Vercel Authentication** (302 → `vercel.com/sso-api` — platform-level protection in front of the app's own Supabase auth; appropriate for an internal tool and left as is). The global `gbm-sports-group.vercel.app` is **not** this project's domain (`DEPLOYMENT_NOT_FOUND`) and the docs no longer claim it. Changing/confirming the Production Branch *setting* itself: **BLOCKED BY AUTHORIZATION**, but behaviourally moot — `main` demonstrably produces the production deployment, and the `ignoreCommand` guard is on `VERCEL_ENV`, not a branch name. |
+| 4 | Unused resources (Blob, KV, Edge Config, Cron, Postgres, functions config) | **Codebase side VERIFIED**: zero references to any Vercel storage/KV/blob/edge-config/cron SDK or API anywhere in the repository; the app defines no crons and no special functions config. Enumerating the project's provisioned resources is **BLOCKED BY AUTHORIZATION**. Nothing repo-side can create or use such a resource, so any that existed would be orphaned by construction. |
+| 5 | Account/project access | **RESOLVED to a precise, single grant**: the right team is already connected; the connector's authorization simply excludes the `gbm-sports-group` project. Re-authorizing the Vercel connector on claude.ai with access to this project (or all team projects) unblocks items 1's cosmetic remainder, 2, 3's setting-level confirmation and 4 in one step. |
 
 ## 7. Resulting architecture
 
