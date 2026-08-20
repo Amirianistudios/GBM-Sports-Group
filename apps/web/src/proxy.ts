@@ -8,11 +8,28 @@ import { supabaseAnonKey, supabaseUrl } from '@/lib/supabase/env';
  * public player database.
  */
 export async function proxy(request: NextRequest) {
+  // Resolve configuration before anything else, and fail legibly: an
+  // uncaught throw here renders as a bare "Internal Server Error" on every
+  // route, which is undiagnosable from a browser. A missing variable is a
+  // deployment-configuration fault and should say so — by name, never by
+  // value.
+  let supabaseApiUrl: string;
+  let anonKey: string;
+  try {
+    supabaseApiUrl = supabaseUrl();
+    anonKey = supabaseAnonKey();
+  } catch (error) {
+    return new NextResponse(
+      `Deployment configuration error.\n\n${error instanceof Error ? error.message : 'Supabase connection settings could not be resolved.'}\n\nNo data is exposed by this page. Fix the deployment environment and redeploy.`,
+      { status: 500, headers: { 'content-type': 'text/plain; charset=utf-8' } },
+    );
+  }
+
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
-    supabaseUrl(),
-    supabaseAnonKey(),
+    supabaseApiUrl,
+    anonKey,
     {
       cookies: {
         getAll() {

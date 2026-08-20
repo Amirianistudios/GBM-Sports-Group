@@ -53,7 +53,27 @@ controlled production import, served its purpose (run #4) and was deleted
 along with its trigger file. The Supabase project URL is baked in (public by
 design); the one repository secret is `SUPABASE_SERVICE_ROLE_KEY`.
 
-### What had broken the deployment
+### The 2026-08-20 production-deployment incident, in full
+
+Three separate faults stacked, which is why "fixed" was declared twice before
+it was true:
+
+1. **The build was broken on `main`** (workspace naming — see the next
+   section). Fixed on the branch, merged as `03658be`.
+2. **The Vercel Root Directory was unset** on a monorepo whose app lives in
+   `apps/web`, so even the fixed code could not produce a servable production
+   build; the dashboard showed "No Production Deployment". Fixed in the
+   dashboard (Root Directory → `apps/web`).
+3. **A stale commit was manually promoted.** With no ready production build
+   to point at, the newest *Ready* row in the deployments list was the
+   preview of `e442666` — the last branch push before `vercel.json`'s
+   ignore rule (12:20 vs 12:36) and eight commits before the scouting UI
+   existed. Redeployed/promoted from the dashboard, it became "Current
+   Production": status Ready, content stale, and every route returning a
+   bare `Internal Server Error` from the middleware. The middleware now
+   fails legibly (`src/proxy.ts` names the missing configuration instead of
+   a blank 500), and production must always come from the latest `main`
+   through the Git integration — never from promoting old previews.
 
 Root `package.json` filtered `@gbm/web`, while `apps/web/package.json` was named
 `web`. `pnpm build` from the root therefore matched no project and exited
