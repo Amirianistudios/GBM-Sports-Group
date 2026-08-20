@@ -46,8 +46,9 @@ Verified from the repository root:
 The five gates are now mechanical: `.github/workflows/ci.yml` runs them on
 every push and pull request (all runs green so far). `data-refresh.yml` is the
 weekly scheduled pipeline; `staged-import-once.yml` is a push-triggered
-bootstrap for the first controlled production import. Both need the two
-repository secrets named below.
+bootstrap for the first controlled production import. The Supabase project URL
+is baked into both (public by design); each needs exactly **one** repository
+secret: `SUPABASE_SERVICE_ROLE_KEY`.
 
 ### What had broken the deployment
 
@@ -217,10 +218,11 @@ research queue.
 ## Known gaps
 
 1. **Production has not received the staged import yet.** The pipeline is
-   proven on the local stack, the workflows exist, but the two repository
-   secrets (`NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`) are not
-   configured, so the staged-import workflow fails at preflight — loudly,
-   naming them. Production therefore still holds the 30 sample players.
+   proven on the local stack and the workflows exist, but the single required
+   repository secret (`SUPABASE_SERVICE_ROLE_KEY`) is not configured, so the
+   staged-import workflow fails at preflight — loudly, naming it (verified
+   three times, most recently at head `bd5d3ad`). Production therefore still
+   holds the 30 sample players.
 2. The integration rehearsal is a documented manual procedure
    (`supabase start` → seeds → pipeline), not yet a CI job. Wiring the local
    stack into CI is the next hardening step.
@@ -281,9 +283,10 @@ Two findings change the roadmap:
 
 ## Next
 
-1. **Add the two repository secrets** (`NEXT_PUBLIC_SUPABASE_URL`,
-   `SUPABASE_SERVICE_ROLE_KEY`) under GitHub → Settings → Secrets and
-   variables → Actions. This is the only step requiring the project owner.
+1. **Add the one repository secret** `SUPABASE_SERVICE_ROLE_KEY` (Supabase →
+   Project Settings → API Keys) under GitHub → Settings → Secrets and
+   variables → Actions. This is the only step requiring the project owner —
+   the project URL is already baked into the workflows.
 2. Change `.github/import-trigger` on the working branch (any edit) — the
    staged-import workflow then runs the rehearsed pipeline against production
    and finishes with `ingest:verify`.

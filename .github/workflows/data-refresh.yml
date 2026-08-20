@@ -11,9 +11,10 @@
 # prescribes — e.g. max_players=2000 for the first controlled production
 # import. Inputs deliberately mirror the CLI's flags.
 #
-# Required repository secrets (Settings → Secrets and variables → Actions):
-#   NEXT_PUBLIC_SUPABASE_URL    the Supabase project URL
+# Required repository secret (Settings → Secrets and variables → Actions):
 #   SUPABASE_SERVICE_ROLE_KEY   service key; bypasses RLS; never printed
+# The Supabase project URL is public by design and baked into the job env
+# below; a same-named repository secret overrides it if ever needed.
 #
 # Failure behaviour: any failing stage fails the run (GitHub notifies the
 # repository watchers), the ingestion_runs row is closed as FAILED with the
