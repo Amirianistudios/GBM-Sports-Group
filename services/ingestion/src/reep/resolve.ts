@@ -43,24 +43,31 @@ const MATCH_METHOD = 'REEP_REGISTER';
 const CONFIDENCE = 0.99;
 
 /**
- * Register provider slug → GBM provider code. Only providers registered in
- * `data_providers` are mapped; the register carries ~40 more (Opta, WhoScored,
- * Soccerway, Flashscore …) which are deliberately left out until GBM has a
- * reason to consume them. Unmapped slugs are counted and reported, never
- * guessed.
+ * (register provider slug, namespace) → GBM provider code, for PLAYER-scoped
+ * bridges. Namespaces are provider-native and vary per provider — surveyed
+ * from release 20260820T103440Z itself: Transfermarkt uses its URL segment
+ * `spieler` (`spiel` is a match, `verein` a club, `trainer` a coach), FBref
+ * uses `person`, StatsBomb open-data ids appear as `offline_player`.
+ *
+ * Only providers registered in `data_providers` are mapped; the register
+ * carries many more (Opta, SkillCorner, ESPN, FIFA, EA FC, Capology …) which
+ * are deliberately left out until GBM has a reason to consume them, and the
+ * ambiguous `fm` slug is not guessed at. Bridges for a matched player that
+ * fall outside this map are counted and reported, never written.
+ *
+ * Sofascore, FotMob and Wikidata do not appear in the v1 curated bridge set
+ * at all — in v1 they live in the overlay (confidence 0.85), which this
+ * resolver deliberately does not consume. Their v0-derived rows remain in
+ * player_external_ids untouched.
  */
-export const REEP_SLUG_TO_PROVIDER: Record<string, string> = {
-  transfermarkt: 'TRANSFERMARKT',
-  sofascore: 'SOFASCORE',
-  fotmob: 'FOTMOB',
-  wyscout: 'WYSCOUT',
-  fbref: 'FBREF',
-  understat: 'UNDERSTAT',
-  besoccer: 'BESOCCER',
-  sportmonks: 'SPORTMONKS',
-  api_football: 'API_FOOTBALL',
-  impect: 'IMPECT',
-  wikidata: 'WIKIDATA',
+export const REEP_PLAYER_BRIDGES: Record<string, { namespace: string; provider: string }> = {
+  transfermarkt: { namespace: 'spieler', provider: 'TRANSFERMARKT' },
+  wyscout: { namespace: 'player', provider: 'WYSCOUT' },
+  api_football: { namespace: 'player', provider: 'API_FOOTBALL' },
+  sportmonks: { namespace: 'player', provider: 'SPORTMONKS' },
+  fbref: { namespace: 'person', provider: 'FBREF' },
+  understat: { namespace: 'player', provider: 'UNDERSTAT' },
+  statsbomb: { namespace: 'offline_player', provider: 'STATSBOMB' },
 };
 
 /**
@@ -223,9 +230,19 @@ function parseBridge(r: Record<string, string>, seenHeader: { ok: boolean }): Br
   return { provider, namespace: str(r.namespace)?.toLowerCase() ?? null, externalId, reepId };
 }
 
-/** Player-scoped bridges only; a club id colliding with a player id must not join. */
-function isPlayerBridge(b: Bridge): boolean {
-  return b.namespace === null || b.namespace === 'player';
+/**
+ * Player-scoped bridges only, by each provider's own namespace — a club or
+ * match id colliding with a player id must never join. The first rehearsal
+ * resolve matched 0 of 5.2M bridges because a blanket namespace === 'player'
+ * filter excluded Transfermarkt's `spieler`.
+ */
+function isTransfermarktPlayerBridge(b: Bridge): boolean {
+  return b.provider === 'transfermarkt' && b.namespace === 'spieler';
+}
+
+function playerMapping(b: Bridge): string | null {
+  const m = REEP_PLAYER_BRIDGES[b.provider];
+  return m && b.namespace === m.namespace ? m.provider : null;
 }
 
 export interface ResolveResult {
@@ -274,7 +291,7 @@ export async function resolveThroughReep(
   for await (const raw of readRows({ path: bridgesFile, gzipped: true })) {
     scanned += 1;
     const b = parseBridge(raw, seenHeader);
-    if (!b || b.provider !== 'transfermarkt' || !isPlayerBridge(b)) continue;
+    if (!b || !isTransfermarktPlayerBridge(b)) continue;
     const playerId = playerByTm.get(b.externalId);
     if (playerId) playerByReep.set(b.reepId, playerId);
   }
@@ -312,14 +329,17 @@ export async function resolveThroughReep(
 
   for await (const raw of readRows({ path: bridgesFile, gzipped: true })) {
     const b = parseBridge(raw, seenHeader);
-    if (!b || !isPlayerBridge(b)) continue;
+    if (!b) continue;
     const playerId = playerByReep.get(b.reepId);
     if (!playerId) continue;
     matched.add(playerId);
 
-    const provider = REEP_SLUG_TO_PROVIDER[b.provider];
+    const provider = playerMapping(b);
     if (!provider) {
-      unmappedSlugs[b.provider] = (unmappedSlugs[b.provider] ?? 0) + 1;
+      // Every bridge here belongs to a matched PLAYER entity, so this count
+      // is a real coverage opportunity (e.g. opta|person), not noise.
+      const slot = `${b.provider}|${b.namespace ?? ''}`;
+      unmappedSlugs[slot] = (unmappedSlugs[slot] ?? 0) + 1;
       continue;
     }
     // The player's Transfermarkt id is already its reconciliation anchor
