@@ -1,0 +1,116 @@
+# Scheduled data refresh — the executable form of the ingestion_jobs registry.
+#
+# Weekly (Wednesday 03:00 UTC, after the dataset's usual Tuesday publish) the
+# pipeline checks the published Transfermarkt dataset, imports it when newer,
+# re-resolves identities against the current Reep v1 register, recomputes
+# discovery signals, and verifies the result. Every stage writes an
+# ingestion_runs row in the database, so the run is observable from inside the
+# platform as well as from this log.
+#
+# Manual runs (workflow_dispatch) exist for the staged imports the data plan
+# prescribes — e.g. max_players=2000 for the first controlled production
+# import. Inputs deliberately mirror the CLI's flags.
+#
+# Required repository secrets (Settings → Secrets and variables → Actions):
+#   NEXT_PUBLIC_SUPABASE_URL    the Supabase project URL
+#   SUPABASE_SERVICE_ROLE_KEY   service key; bypasses RLS; never printed
+#
+# Failure behaviour: any failing stage fails the run (GitHub notifies the
+# repository watchers), the ingestion_runs row is closed as FAILED with the
+# error attached, and the full log is retained as an artifact for 30 days.
+name: data-refresh
+
+on:
+  schedule:
+    - cron: '0 3 * * 3'
+  workflow_dispatch:
+    inputs:
+      max_players:
+        description: 'Cap on players imported (newest active first). Empty = full dataset.'
+        required: false
+        type: string
+      force:
+        description: 'Import even when the published dataset version is unchanged.'
+        required: false
+        type: boolean
+        default: false
+      skip_stats:
+        description: 'Skip the appearances → season statistics aggregation.'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: data-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Preflight
+        run: pnpm ingest:preflight | tee logs-preflight.txt
+
+      # Staged manual run: exactly the CLI the data plan prescribes for a
+      # controlled import (e.g. max_players=2000).
+      - name: Download + staged import
+        if: github.event_name == 'workflow_dispatch' && inputs.max_players != ''
+        run: |
+          pnpm data:download ${{ inputs.skip_stats && '--skip-stats' || '' }} | tee logs-download.txt
+          pnpm data:import --max-players ${{ inputs.max_players }} ${{ inputs.skip_stats && '--skip-stats' || '' }} | tee logs-import.txt
+
+      # Scheduled / full run: data:update reads the last ingested dataset
+      # version from the run ledger in the database (a fresh runner has no
+      # local state) and no-ops the import when the published dataset is
+      # unchanged. Identity resolution still runs below either way, because
+      # the Reep register refreshes weekly on its own cadence.
+      - name: Update (full, when dataset is newer)
+        if: github.event_name == 'schedule' || inputs.max_players == ''
+        run: pnpm data:update ${{ inputs.force && '--force' || '' }} ${{ inputs.skip_stats && '--skip-stats' || '' }} | tee logs-import.txt
+
+      - name: Resolve identities (Reep v1)
+        run: pnpm reep:resolve | tee logs-resolve.txt
+
+      - name: Recompute discovery signals
+        run: pnpm signals:compute | tee logs-signals.txt
+
+      - name: Data quality
+        run: pnpm quality:check | tee logs-quality.txt
+
+      - name: Verify end-to-end
+        run: pnpm ingest:verify | tee logs-verify.txt
+
+      - name: Run summary
+        if: always()
+        run: |
+          {
+            echo '## Data refresh'
+            echo '```'
+            cat logs-preflight.txt logs-import.txt logs-resolve.txt logs-signals.txt logs-quality.txt logs-verify.txt 2>/dev/null | tail -80
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Retain logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: data-refresh-logs-${{ github.run_number }}
+          path: logs-*.txt
+          retention-days: 30
+          if-no-files-found: ignore

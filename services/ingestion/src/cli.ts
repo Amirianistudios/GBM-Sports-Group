@@ -170,12 +170,32 @@ async function cmdVerify(): Promise<void> {
   if (!report.ok) process.exit(1);
 }
 
+/**
+ * The version last ingested, read from the database rather than the local
+ * manifest: a CI runner starts from a fresh checkout every week, so the
+ * run ledger — not the workspace — is the source of truth for what the
+ * database has already absorbed.
+ */
+async function lastIngestedVersion(): Promise<string | null> {
+  const { data } = await admin()
+    .from('ingestion_runs')
+    .select('summary')
+    .eq('job_key', 'transfermarkt_dataset_update')
+    .in('status', ['SUCCESS', 'PARTIAL'])
+    .order('started_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const v = (data?.summary as Record<string, unknown> | null)?.datasetVersion;
+  return typeof v === 'string' && v ? v : null;
+}
+
 async function cmdUpdate(): Promise<void> {
   await cmdPreflight();
   log('');
   const status = await checkForUpdate();
-  log(`Published ${status.remoteVersion}; last ingested ${status.localVersion ?? 'never'}`);
-  if (!status.hasUpdate && !flag('force')) {
+  const ingested = (await lastIngestedVersion()) ?? status.localVersion;
+  log(`Published ${status.remoteVersion}; last ingested ${ingested ?? 'never'}`);
+  if (ingested === status.remoteVersion && !flag('force')) {
     log('Already current. Pass --force to re-import anyway.');
     return;
   }
