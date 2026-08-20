@@ -112,8 +112,8 @@ What those numbers mean:
 
 ### Migrations
 
-All eleven migrations are applied to the hosted project, and the repository now
-reproduces the hosted schema exactly. Three had been applied directly to the
+All thirteen migrations are applied to the hosted project, and the repository
+now reproduces the hosted schema exactly. Three had been applied directly to the
 database in an earlier session and existed in **no file** — `security_hardening`,
 `natural_key_constraints` and the intelligence views. They have been captured,
 so a database rebuilt from `supabase/migrations/` is no longer missing
@@ -133,6 +133,7 @@ constraints and hardening the live one has.
 | `20260819130100_discovery_signals` | Reproducible signal computation |
 | `20260819130200_harden_views_and_functions` | Closes the anonymous read path (below) |
 | `20260820120000_season_stats_idempotency` | NULLS NOT DISTINCT natural key for player_season_stats (applied to hosted 2026-08-20) |
+| `20260820150000_discovery_view_and_links` | `v_player_discovery`, representation-view fan-out fix, `player_links`, pipeline watchlist statuses (applied to hosted 2026-08-20) |
 
 ## Security
 
@@ -160,13 +161,49 @@ in a build or a typecheck.
 
 ## Application
 
-Twelve routes, all building: `/`, `/login`, `/players`, `/players/[id]`,
-`/clubs`, `/discover`, `/scouting`, `/watchlists`, `/representation`, `/data`,
-`/auth/signout`, `/_not-found`. Auth is enforced for the whole app by
-`src/proxy.ts`; there is no public surface.
+Fourteen routes, all building: `/`, `/login`, `/players`, `/players/[id]`,
+`/players/[id]/report/new`, `/compare`, `/clubs`, `/discover`, `/scouting`,
+`/watchlists`, `/representation`, `/data`, `/auth/signout`, `/_not-found`.
+Auth is enforced for the whole app by `src/proxy.ts`; there is no public
+surface.
 
-Not yet verified: rendering against the deployed environment, and the mobile
-viewport pass (390×844, 430×932, 768×1024, 1440×900).
+The scouting experience built on 2026-08-20 (validation record:
+[`STAGED_DATA_VALIDATION.md`](STAGED_DATA_VALIDATION.md); design rationale:
+[`GBM_BRAND_ANALYSIS.md`](GBM_BRAND_ANALYSIS.md); AI posture:
+[`AI_READINESS.md`](AI_READINESS.md)):
+
+- **Dashboard** (`/`) — standing counts, then the scout's own work first:
+  Assigned to you, Priority targets (HIGH_PRIORITY or P4+), Recently watched,
+  Recent scouting activity (reports + notes), Recommended discoveries, and
+  the representation research queue with its NO_AGENCY_LISTED caveat.
+- **Discovery** (`/players`) — backed by the `v_player_discovery` view: every
+  row carries current-season apps/minutes/goals/assists, per-90s (NULL under
+  270 minutes), primary league, value, contract and representation. Filters
+  for league/minutes/apps/goals/assists/per-90 floors joined the existing
+  identity filters; twelve sorts including lowest value and recently added.
+- **Profile** (`/players/[id]`) — header with portrait (initials monogram
+  fallback), GBM badge, market value; season-by-season performance table
+  with per-90s; market-value chart; contract; honest empty Availability;
+  Scouting (reports with pillar ratings + inline notes); transfer history;
+  Official links registry; sources; data quality.
+- **Compare** (`/compare?ids=`) — 2–4 players, monochrome bars, percentiles
+  computed within position cohorts of imported players with 270+ minutes and
+  labelled as exactly that.
+- **Watchlists** (`/watchlists`) — per-entry status
+  (discovered → monitoring → scout requested → high priority → contacted →
+  negotiating → represented by GBM / rejected / archived, legacy values still
+  selectable), priority P1–P5, assigned scout, reason; edits write through
+  RLS and refresh in place.
+- **Report form** (`/players/[id]/report/new`) — four pillars, overall +
+  potential, strengths/weaknesses/summary, recommendation, draft flag.
+
+Verified 2026-08-20 by an end-to-end Playwright pass against the local stack
+holding the same pipeline's data (2,120 players): login → dashboard →
+discovery (+U21 filter) → profile → compare → watchlists → report form, at
+1440×900 and 390×844, with text assertions on real player data. Production
+rendering after deploy is the remaining unverified step. Note for local
+testing: RLS grants reads via `gbm_is_member()`, so a local test user needs
+an `organization_members` row — password auth alone renders an empty app.
 
 ## Ingestion service — proven end-to-end (locally)
 
@@ -288,9 +325,9 @@ Two findings change the roadmap:
 
 1. ~~Add the repository secret~~ — done 2026-08-20; ~~run the staged import~~
    — done and verified 2026-08-20 (run `staged-import-once #4`).
-2. Review the staged data in the app: open the profile page of a
-   multi-provider player (e.g. Robert Lewandowski — 9 providers, 52
-   valuations, 58 stat rows, 8 transfers).
+2. ~~Review the staged data in the app~~ — done 2026-08-20: 27-player
+   scouting validation (`STAGED_DATA_VALIDATION.md`) plus the Playwright
+   pass above.
 3. Merge the working branch to `main` so the weekly `data-refresh.yml`
    schedule becomes active (scheduled workflows only run from the default
    branch), then delete `staged-import-once.yml` and its trigger file.

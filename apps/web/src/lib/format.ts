@@ -73,3 +73,52 @@ export function formatPercent(value: number | null | undefined): string {
   if (value === null || value === undefined) return '—';
   return `${value > 0 ? '+' : ''}${value.toFixed(0)}%`;
 }
+
+/** Per-90 rate. NULL means "under the minutes floor", shown as an em dash. */
+export function formatPer90(value: number | null | undefined): string {
+  if (value === null || value === undefined) return '—';
+  return Number(value).toFixed(2);
+}
+
+export function formatMinutes(value: number | null | undefined): string {
+  if (value === null || value === undefined) return '—';
+  return `${Number(value).toLocaleString('en-GB')}'`;
+}
+
+/**
+ * The shortlist workflow vocabulary. The column is free text in the schema;
+ * this list is the application-level contract, ordered as a pipeline.
+ */
+export const WATCHLIST_STATUSES = [
+  'DISCOVERED',
+  'MONITORING',
+  'SCOUT_REQUESTED',
+  'HIGH_PRIORITY',
+  'CONTACTED',
+  'NEGOTIATING',
+  'REJECTED',
+  'ARCHIVED',
+  'REPRESENTED_BY_GBM',
+] as const;
+
+export type WatchlistStatus = (typeof WATCHLIST_STATUSES)[number];
+
+export function statusLabel(status: string | null | undefined): string {
+  if (!status) return '—';
+  return status.replaceAll('_', ' ').toLowerCase();
+}
+
+/** Badge class per workflow stage — colour only where state genuinely differs. */
+export function watchlistStatusClass(status: string | null | undefined): string {
+  switch (status) {
+    case 'HIGH_PRIORITY':
+    case 'SCOUT_REQUESTED':
+      return 'badge badge-attention';
+    case 'REPRESENTED_BY_GBM':
+    case 'NEGOTIATING':
+    case 'CONTACTED':
+      return 'badge badge-verified';
+    default:
+      return 'badge badge-neutral';
+  }
+}
