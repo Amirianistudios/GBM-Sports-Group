@@ -38,6 +38,18 @@ Pushing to `main` is the deploy. Vercel's Git integration picks up the commit an
 
 If a deployment fails, fix the source, prove `pnpm build` passes locally, commit, push, and let the integration retry.
 
+### Vercel is deployment-only
+
+Vercel's role is exactly: `main` updates → automatic production deployment.
+It stores no data, runs no backend logic, holds no source of record, and is
+never operated manually. **Preview deployments are disabled declaratively**:
+`vercel.json` (present at the repository root and in `apps/web/`, so it is
+read whichever Root Directory the project uses) carries an `ignoreCommand`
+that skips every non-production build — development branches produce no
+preview builds and no preview URLs, while production builds are unaffected.
+The full audit and the owner-side dashboard checklist are in
+[`VERCEL_ARCHITECTURE_AUDIT.md`](VERCEL_ARCHITECTURE_AUDIT.md).
+
 ## Build configuration
 
 The repository is a pnpm workspace. `apps/web` deliberately has **no `workspace:*` dependencies**, so it installs and builds correctly whether Vercel's Root Directory is the repository root or `apps/web`.
