@@ -1,26 +1,28 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { AppShell } from '@/components/app-shell';
-import { formatAge, positionCode } from '@/lib/format';
+import { WatchlistEntryControls, type Scout } from '@/components/watchlist-manager';
+import { formatAge, positionCode, statusLabel, watchlistStatusClass } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 
-const STATUS_STYLE: Record<string, string> = {
-  HIGH_PRIORITY: 'badge badge-attention',
-  REPRESENTATION_TARGET: 'badge badge-verified',
-  CLUB_TARGET: 'badge badge-verified',
-  PASS: 'badge badge-neutral',
-  ARCHIVED: 'badge badge-neutral',
-};
-
+/**
+ * SHORTLISTS. The full recruitment workflow lives on each entry: status
+ * (discovered → … → represented by GBM), priority, assigned scout, reason.
+ * Rows write straight through RLS; the vocabulary is defined in lib/format.
+ */
 export default async function WatchlistsPage() {
   const supabase = await createClient();
 
-  const { data: watchlists } = await supabase
-    .from('watchlists')
-    .select('id, name, description, watchlist_players(id, status, priority, player_id, players(full_name, primary_position, date_of_birth, clubs(name)))')
-    .order('created_at');
+  const [{ data: watchlists }, { data: scouts }] = await Promise.all([
+    supabase
+      .from('watchlists')
+      .select('id, name, description, watchlist_players(id, status, priority, reason, assigned_scout_id, player_id, players(full_name, primary_position, date_of_birth, clubs(name)))')
+      .order('created_at'),
+    supabase.from('profiles').select('id, full_name, email').order('full_name'),
+  ]);
 
+  const scoutList = (scouts ?? []) as Scout[];
   const total = (watchlists ?? []).reduce((n, w) => n + (w.watchlist_players?.length ?? 0), 0);
 
   return (
@@ -62,9 +64,9 @@ export default async function WatchlistsPage() {
                     const p = Array.isArray(wp.players) ? wp.players[0] : wp.players;
                     const club = p && (Array.isArray(p.clubs) ? p.clubs[0] : p.clubs);
                     return (
-                      <Link key={wp.id} href={`/players/${wp.player_id}`} className="sheet-row">
+                      <div key={wp.id} className="px-4 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
                         <div className="flex items-center gap-3">
-                          <div className="min-w-0 flex-1">
+                          <Link href={`/players/${wp.player_id}`} className="min-w-0 flex-1">
                             <p className="font-semibold text-[0.9375rem] truncate">{p?.full_name}</p>
                             <div className="flex items-center gap-2 mt-1 text-xs" style={{ color: 'var(--muted)' }}>
                               <span className="pos-chip">
@@ -74,12 +76,20 @@ export default async function WatchlistsPage() {
                               </span>
                               <span className="truncate">{club?.name ?? '—'}</span>
                             </div>
-                          </div>
-                          <span className={STATUS_STYLE[wp.status] ?? 'badge badge-neutral'}>
-                            {wp.status.replaceAll('_', ' ').toLowerCase()}
-                          </span>
+                          </Link>
+                          <span className={watchlistStatusClass(wp.status)}>{statusLabel(wp.status)}</span>
                         </div>
-                      </Link>
+                        <div className="mt-2.5">
+                          <WatchlistEntryControls
+                            entryId={wp.id}
+                            status={wp.status}
+                            priority={wp.priority}
+                            assignedScoutId={wp.assigned_scout_id}
+                            reason={wp.reason}
+                            scouts={scoutList}
+                          />
+                        </div>
+                      </div>
                     );
                   })
                 )}

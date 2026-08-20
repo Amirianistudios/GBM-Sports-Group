@@ -13,9 +13,11 @@ import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 export function PlayerFilters({
   positions,
   nationalities,
+  leagues = [],
 }: {
   positions: string[];
   nationalities: string[];
+  leagues?: string[];
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -33,8 +35,10 @@ export function PlayerFilters({
     startTransition(() => router.push(`${pathname}?${sp.toString()}`));
   }
 
-  const activeCount = ['position', 'nationality', 'foot', 'agency', 'ageMin', 'ageMax', 'minHeight', 'maxValue', 'contract']
-    .filter((k) => params.get(k)).length;
+  const activeCount = [
+    'position', 'nationality', 'foot', 'agency', 'ageMin', 'ageMax', 'minHeight', 'maxValue',
+    'contract', 'league', 'minMinutes', 'minApps', 'minGoals', 'minAssists', 'minG90', 'minA90',
+  ].filter((k) => params.get(k)).length;
 
   return (
     <div className="px-4 md:px-6 pt-3">
@@ -82,16 +86,41 @@ export function PlayerFilters({
                   options={[['none', 'No agency listed'], ['known', 'Known agency']]}
                   onChange={(v) => apply({ agency: v })} />
 
+          {leagues.length > 0 && (
+            <Select label="League (this season)" name="league" value={params.get('league') ?? ''}
+                    options={leagues} onChange={(v) => apply({ league: v })} />
+          )}
+
           <Number label="Min age" value={params.get('ageMin') ?? ''} onChange={(v) => apply({ ageMin: v })} />
           <Number label="Max age" value={params.get('ageMax') ?? ''} onChange={(v) => apply({ ageMax: v })} />
           <Number label="Min height (cm)" value={params.get('minHeight') ?? ''} onChange={(v) => apply({ minHeight: v })} />
           <Number label="Max value (€m)" value={params.get('maxValue') ?? ''} onChange={(v) => apply({ maxValue: v })} />
 
+          <Number label="Min minutes (season)" value={params.get('minMinutes') ?? ''} onChange={(v) => apply({ minMinutes: v })} />
+          <Number label="Min appearances" value={params.get('minApps') ?? ''} onChange={(v) => apply({ minApps: v })} />
+          <Number label="Min goals" value={params.get('minGoals') ?? ''} onChange={(v) => apply({ minGoals: v })} />
+          <Number label="Min assists" value={params.get('minAssists') ?? ''} onChange={(v) => apply({ minAssists: v })} />
+          <Number label="Min goals /90" value={params.get('minG90') ?? ''} onChange={(v) => apply({ minG90: v })} />
+          <Number label="Min assists /90" value={params.get('minA90') ?? ''} onChange={(v) => apply({ minA90: v })} />
+
           <Select label="Contract ends within" name="contract" value={params.get('contract') ?? ''}
                   options={[['3', '3 months'], ['6', '6 months'], ['12', '12 months'], ['18', '18 months'], ['24', '24 months']]}
                   onChange={(v) => apply({ contract: v })} />
           <Select label="Sort by" name="sort" value={params.get('sort') ?? 'value'}
-                  options={[['value', 'Market value'], ['growth', 'Value growth'], ['age', 'Age'], ['contract', 'Contract ending'], ['name', 'Name']]}
+                  options={[
+                    ['value', 'Market value'],
+                    ['growth', 'Value growth (12m)'],
+                    ['signal', 'Signal score'],
+                    ['minutes', 'Season minutes'],
+                    ['goals', 'Season goals'],
+                    ['g90', 'Goals per 90'],
+                    ['a90', 'Assists per 90'],
+                    ['lowvalue', 'Lowest market value'],
+                    ['age', 'Age (youngest)'],
+                    ['contract', 'Contract ending'],
+                    ['recent', 'Recently added'],
+                    ['name', 'Name'],
+                  ]}
                   onChange={(v) => apply({ sort: v })} />
 
           <div className="col-span-2 md:col-span-4 flex justify-end pt-1">

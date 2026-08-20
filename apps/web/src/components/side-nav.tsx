@@ -16,6 +16,7 @@ const GROUPS: Array<{ heading: string; items: Array<{ href: string; label: strin
     heading: 'Research',
     items: [
       { href: '/players', label: 'Players' },
+      { href: '/compare', label: 'Compare' },
       { href: '/clubs', label: 'Clubs' },
     ],
   },
@@ -41,9 +42,20 @@ export function SideNav() {
       style={{ borderRight: '1px solid var(--border)', background: 'var(--surface)' }}
     >
       <Link href="/" className="px-5 py-5 block">
-        <div className="flex items-baseline gap-2">
-          <span className="text-xl font-bold tracking-tight">GBM</span>
-          <span className="eyebrow">Intelligence</span>
+        <div className="flex items-center gap-2.5">
+          {/* The GBM wordmark — monochrome by brand; see docs/GBM_BRAND_ANALYSIS.md */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/brand/gbm-logo.png"
+            alt="GBM Sports Group"
+            width={34}
+            height={34}
+            className="rounded-[4px] shrink-0"
+          />
+          <div className="flex flex-col leading-none gap-1">
+            <span className="text-base font-bold tracking-tight">GBM</span>
+            <span className="eyebrow" style={{ fontSize: '0.5625rem' }}>Intelligence</span>
+          </div>
         </div>
       </Link>
 

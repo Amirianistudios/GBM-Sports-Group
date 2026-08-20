@@ -19,6 +19,8 @@
     "quality:check": "tsx services/ingestion/src/cli.ts quality",
     "signals:compute": "tsx services/ingestion/src/cli.ts signals",
     "ingest:status": "tsx services/ingestion/src/cli.ts status",
+    "ingest:preflight": "tsx services/ingestion/src/cli.ts preflight",
+    "ingest:verify": "tsx services/ingestion/src/cli.ts verify",
     "apifootball:test": "tsx scripts/test-apifootball.ts"
   },
   "devDependencies": {

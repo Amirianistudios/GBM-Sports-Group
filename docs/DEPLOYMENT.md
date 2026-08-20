@@ -38,6 +38,32 @@ Pushing to `main` is the deploy. Vercel's Git integration picks up the commit an
 
 If a deployment fails, fix the source, prove `pnpm build` passes locally, commit, push, and let the integration retry.
 
+### Vercel is deployment-only
+
+Vercel's role is exactly: `main` updates → automatic production deployment.
+It stores no data, runs no backend logic, holds no source of record, and is
+never operated manually.
+
+Verified project facts (2026-08-20, from Vercel's own integration output and
+live probes — see [`VERCEL_ARCHITECTURE_AUDIT.md`](VERCEL_ARCHITECTURE_AUDIT.md)):
+
+| Fact | Value |
+|---|---|
+| Project | `gbm-sports-group` (`prj_to6e5a4jT2170ZN244pTvh7NDEOx`) |
+| Team | `amirianantoni10-9420s-projects` |
+| Root Directory | repository root (monorepo) |
+| Production deployment | `https://gbm-sports-group-git-main-amirianantoni10-9420s-projects.vercel.app`, behind Vercel Authentication (platform SSO in front of the app's own Supabase auth) |
+| Not this project | `gbm-sports-group.vercel.app` (returns `DEPLOYMENT_NOT_FOUND`) |
+
+**Preview deployments are disabled declaratively and the behaviour is
+verified**: `vercel.json` (repository root, mirrored in `apps/web/`) carries
+an `ignoreCommand` that skips every non-production build — Vercel's own PR
+comment for a branch push reports the deployment as *Ignored/Skipped*.
+`"github": { "silent": true }` additionally stops Vercel commenting on PRs
+and commits. Development branches therefore produce **no** builds, **no**
+preview URLs and **no** comment noise; pushes to `main` build and deploy
+exactly as before.
+
 ## Build configuration
 
 The repository is a pnpm workspace. `apps/web` deliberately has **no `workspace:*` dependencies**, so it installs and builds correctly whether Vercel's Root Directory is the repository root or `apps/web`.
@@ -83,18 +109,18 @@ Both are read lazily by `apps/web/src/lib/supabase/env.ts`. If either is missing
 | `GBM_USER_AGENT` | Identifies GBM to public sources that ask for a contact header. |
 | `WYSCOUT_*` | Not configured. No code path requires it; the application builds and runs without it. |
 
-> `.env.example` could not be written from this environment — the local permission
-> configuration blocks all `.env*` paths. The table above is the authoritative
-> list of variable names until that file is updated by hand.
+> `.env.example` at the repository root is the fill-in template for these
+> names. The ingestion pipeline in GitHub Actions reads
+> `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` from repository
+> secrets (Settings → Secrets and variables → Actions), never from a file.
 
 ## Database migrations
 
-Migrations in `supabase/migrations/` are the reproducible definition of the schema. Apply them with the Supabase CLI or dashboard; they are not applied by the build.
+Migrations in `supabase/migrations/` are the reproducible definition of the
+schema. Apply them with the Supabase CLI or dashboard; they are not applied by
+the build. All twelve are applied to the hosted project as of 2026-08-20 —
+`docs/CURRENT_STATE.md` tracks exactly which are live.
 
-Pending application to the hosted project at the time of writing:
-
-- `20260819125000_analytical_views.sql`
-- `20260819130000_ingestion_idempotency.sql`
-- `20260819130100_discovery_signals.sql`
-
-See `docs/CURRENT_STATE.md` for exactly which are live.
+For local development, `supabase start` (Docker) boots a faithful scratch
+stack and applies every migration; `supabase db reset` re-creates it. This is
+how the ingestion pipeline is rehearsed before it touches production.

@@ -101,5 +101,33 @@ export async function runQualityChecks(): Promise<Check[]> {
     ok: failedRuns === 0,
   });
 
+  const seasonStats = await count('player_season_stats');
+  checks.push({
+    name: 'season statistics present',
+    detail: 'counting statistics aggregated from the dataset back the player profile',
+    count: seasonStats,
+    ok: seasonStats > 0,
+  });
+
+  const statsNoCompetition = await count('player_season_stats', (q) =>
+    q.is('competition_id', null),
+  );
+  checks.push({
+    name: 'stat rows with unresolved competition',
+    detail: 'appearances in competitions the reference data does not describe; retained with NULL dimension',
+    count: statsNoCompetition,
+    ok: true,
+  });
+
+  const reepV1 = await count('player_external_ids', (q) =>
+    q.eq('provider_code', 'REEP').eq('namespace', 'v1'),
+  );
+  checks.push({
+    name: 'players resolved through Reep v1',
+    detail: 'cross-provider identity coverage; 0 means reep:resolve has not run against v1',
+    count: reepV1,
+    ok: true,
+  });
+
   return checks;
 }

@@ -15,6 +15,12 @@ export interface PlayerRowData {
   agency_name: string | null;
   contract_months_remaining: number | null;
   source_count?: number;
+  /** Current-season counting statistics, when the surface provides them. */
+  league_name?: string | null;
+  season_apps?: number | null;
+  season_minutes?: number | null;
+  season_goals?: number | null;
+  season_assists?: number | null;
 }
 
 /**
@@ -50,6 +56,15 @@ export function PlayerRow({ player }: { player: PlayerRowData }) {
             </span>
             <span className="truncate">{player.club_name ?? 'Club unknown'}</span>
           </div>
+
+          {player.season_minutes != null && player.season_minutes > 0 && (
+            <div className="data flex items-center gap-2 mt-1 text-[0.6875rem]" style={{ color: 'var(--muted)' }}>
+              {player.league_name && <span className="truncate max-w-[10rem]">{player.league_name}</span>}
+              <span>{player.season_apps ?? 0} apps</span>
+              <span>{Number(player.season_minutes).toLocaleString('en-GB')}&#8217;</span>
+              <span>{player.season_goals ?? 0}G {player.season_assists ?? 0}A</span>
+            </div>
+          )}
         </div>
 
         <div className="text-right shrink-0">

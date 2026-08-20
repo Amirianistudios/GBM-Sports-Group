@@ -40,10 +40,21 @@ export function LoginForm() {
     <div className="min-h-dvh flex flex-col justify-center px-5 py-12">
       <div className="w-full max-w-sm mx-auto">
         <div className="mb-10">
-          <div className="flex items-baseline gap-2 mb-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/brand/gbm-logo.png"
+            alt="GBM Sports Group"
+            width={56}
+            height={56}
+            className="rounded-[6px] mb-4"
+          />
+          <div className="flex items-baseline gap-2 mb-1.5">
             <span className="text-3xl font-bold tracking-tight">GBM</span>
             <span className="eyebrow">Intelligence</span>
           </div>
+          <p className="eyebrow mb-2" style={{ letterSpacing: '0.06em' }}>
+            Elevating Careers · Building Legacies
+          </p>
           <p className="text-sm" style={{ color: 'var(--muted)' }}>
             Internal football intelligence for GBM Sports Group. Sign in to continue.
           </p>
