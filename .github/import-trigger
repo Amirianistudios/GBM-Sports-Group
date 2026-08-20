@@ -7,3 +7,10 @@ Changing this file on the working branch fires
 Trigger 1: 2026-08-20, after the local dress rehearsal passed end-to-end
 (2,120 players, 64,048 valuations, 22,192 transfers, 27,597 season-stat
 rows, 13,240 Reep v1 identities, verify PASS on Lukas Hradecky).
+Outcome: hollow green — the repository secrets are not configured, and the
+pre-pipefail workflow let `| tee` mask the preflight failure.
+
+Trigger 2: 2026-08-20, with pipefail enforced. Expected to FAIL loudly at
+preflight until NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are
+added under Settings → Secrets and variables → Actions. Once they exist,
+change this file again to run the real staged import.

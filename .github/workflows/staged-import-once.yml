@@ -22,6 +22,13 @@ concurrency:
   group: data-refresh
   cancel-in-progress: false
 
+defaults:
+  run:
+    # GitHub's bare default shell is `bash -e` WITHOUT pipefail, so a failing
+    # `pnpm ... | tee log` step reports tee's exit code and the job lies green.
+    # The explicit keyword expands to `bash --noprofile --norc -eo pipefail`.
+    shell: bash
+
 jobs:
   staged-import:
     runs-on: ubuntu-latest
