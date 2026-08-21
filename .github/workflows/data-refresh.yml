@@ -92,13 +92,13 @@ jobs:
       # Identity resolution still runs below either way, because the Reep
       # register refreshes weekly on its own cadence.
       #
-      # The cap holds the unattended schedule at the staged import's scope:
-      # scaling past 2,000 players is a deliberate act (data plan step —
-      # 10,000 next, then full), done by dispatching this workflow with a
-      # higher cap or an empty one, or by raising the number here.
-      - name: Update (scheduled, staged 2,000 scope)
+      # The cap holds the unattended schedule at the platform's population
+      # scope (6,000 under GBM priority selection since Sprint 1.5). Scaling
+      # further is a deliberate act: raise the number here or run a triggered
+      # import (.github/import-trigger) with a higher cap.
+      - name: Update (scheduled, 6,000 GBM-priority scope)
         if: github.event_name == 'schedule'
-        run: pnpm data:update --max-players 2000 | tee logs-import.txt
+        run: pnpm data:update --max-players 6000 | tee logs-import.txt
 
       # Manual full run: dispatching with an empty cap is the deliberate
       # scale-up to the complete dataset.
