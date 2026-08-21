@@ -1,0 +1,93 @@
+# Manual import, triggered by file push — the dispatch path that works for
+# every collaborator and automation in this repository (the GitHub App used
+# for development has no actions:write, so workflow_dispatch is not callable
+# from it; pushing a change to .github/import-trigger is).
+#
+# To run an import: edit .github/import-trigger (cap + date make the change
+# unique), merge to main, and this workflow executes the same staged pipeline
+# as data-refresh's manual path. Shares data-refresh's concurrency group so a
+# triggered import and the weekly refresh can never interleave.
+name: data-import-trigger
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/import-trigger']
+
+concurrency:
+  group: data-refresh
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || 'https://tyzndcjuiffnyhluddce.supabase.co' }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Read cap from trigger file
+        id: cap
+        run: |
+          CAP=$(grep -oE 'max-players: *[0-9]+' .github/import-trigger | grep -oE '[0-9]+' | head -1 || true)
+          echo "cap=$CAP" >> "$GITHUB_OUTPUT"
+          echo "Requested cap: ${CAP:-'(full dataset)'}"
+
+      - name: Preflight
+        run: pnpm ingest:preflight | tee logs-preflight.txt
+
+      - name: Download + import
+        run: |
+          pnpm data:download | tee logs-download.txt
+          if [ -n "${{ steps.cap.outputs.cap }}" ]; then
+            pnpm data:import --max-players ${{ steps.cap.outputs.cap }} | tee logs-import.txt
+          else
+            pnpm data:import | tee logs-import.txt
+          fi
+
+      - name: Resolve identities (Reep v1)
+        run: pnpm reep:resolve | tee logs-resolve.txt
+
+      - name: Recompute discovery signals
+        run: pnpm signals:compute | tee logs-signals.txt
+
+      - name: Data quality
+        run: pnpm quality:check | tee logs-quality.txt
+
+      - name: Verify end-to-end
+        run: pnpm ingest:verify | tee logs-verify.txt
+
+      - name: Run summary
+        if: always()
+        run: |
+          {
+            echo '## Triggered data import'
+            echo '```'
+            cat logs-preflight.txt logs-import.txt logs-resolve.txt logs-signals.txt logs-quality.txt logs-verify.txt 2>/dev/null | tail -80
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Retain logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: data-import-trigger-logs-${{ github.run_number }}
+          path: logs-*.txt
+          retention-days: 30
+          if-no-files-found: ignore
