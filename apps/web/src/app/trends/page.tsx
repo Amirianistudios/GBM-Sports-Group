@@ -23,6 +23,15 @@ interface Row {
   season_minutes: number | null;
 }
 
+/** Clock read outside the component body — React's purity rule refuses
+ *  Date.now() in render, and this page is force-dynamic anyway. */
+function ageFromDob(dob: string | null): number | null {
+  if (!dob) return null;
+  const t = Date.parse(dob);
+  if (Number.isNaN(t)) return null;
+  return (Date.now() - t) / 31_557_600_000;
+}
+
 function median(xs: number[]): number | null {
   if (xs.length === 0) return null;
   const s = [...xs].sort((a, b) => a - b);
@@ -52,11 +61,20 @@ const POSITION_GROUPS: Array<{ label: string; match: (p: string) => boolean }> =
 
 export default async function TrendsPage() {
   const supabase = await createClient();
+  // Cohort scan over the cached columns — one indexed table read instead of
+  // evaluating the lateral view for the whole population.
   const { data } = await supabase
-    .from('v_player_discovery')
-    .select('age, primary_position, market_value, value_change_12m_pct, league_name, season_minutes');
+    .from('players')
+    .select('date_of_birth, primary_position, cached_market_value, cached_value_change_pct, cached_league, cached_season_minutes');
 
-  const rows = (data ?? []) as Row[];
+  const rows: Row[] = (data ?? []).map((r) => ({
+    age: ageFromDob(r.date_of_birth),
+    primary_position: r.primary_position,
+    market_value: r.cached_market_value,
+    value_change_12m_pct: r.cached_value_change_pct,
+    league_name: r.cached_league,
+    season_minutes: r.cached_season_minutes,
+  }));
   const valued = rows.filter((r) => r.market_value !== null && r.market_value > 0);
 
   const byAge = AGE_BANDS.map((b) => {

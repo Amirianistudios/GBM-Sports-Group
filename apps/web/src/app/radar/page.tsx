@@ -4,6 +4,7 @@ import { AppShell } from '@/components/app-shell';
 import { PlayerListRow, type PlayerCardData } from '@/components/player-card';
 import { PlayerPhoto } from '@/components/player-photo';
 import { statusLabel } from '@/lib/format';
+import { cachedPlayerColumns, dobCutoff, fromCachedPlayer, monthsAhead, todayIso } from '@/lib/card-data';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,64 +13,70 @@ export const dynamic = 'force-dynamic';
  * Players is the broad searchable database; Radar surfaces what the current
  * production data says is MOVING: rapid growth, declines, U21 risers,
  * closing contract windows and lower-value emerging profiles. Every list is
- * a live query against v_player_discovery — nothing is scored or invented
- * beyond the deterministic signals the pipeline already computes.
+ * a live indexed query on the cached player columns — nothing is scored or
+ * invented beyond the deterministic signals the pipeline already computes.
  */
 export default async function RadarPage() {
   const supabase = await createClient();
 
-  const [
-    { data: risers },
-    { data: decliners },
-    { data: u21Risers },
-    { data: contractWindow },
-    { data: emerging },
-    { data: signals },
-  ] = await Promise.all([
-    supabase
-      .from('v_player_discovery')
-      .select('*')
-      .gt('value_change_12m_pct', 0)
-      .gte('season_minutes', 450)
-      .order('value_change_12m_pct', { ascending: false })
-      .limit(8),
-    supabase
-      .from('v_player_discovery')
-      .select('*')
-      .lt('value_change_12m_pct', 0)
-      .gte('market_value', 1_000_000)
-      .order('value_change_12m_pct', { ascending: true })
-      .limit(8),
-    supabase
-      .from('v_player_discovery')
-      .select('*')
-      .lte('age', 21)
-      .gt('value_change_12m_pct', 0)
-      .order('value_change_12m_pct', { ascending: false })
-      .limit(8),
-    supabase
-      .from('v_player_discovery')
-      .select('*')
-      .not('contract_months_remaining', 'is', null)
-      .lte('contract_months_remaining', 18)
-      .gte('market_value', 2_000_000)
-      .order('contract_months_remaining', { ascending: true })
-      .limit(8),
-    supabase
-      .from('v_player_discovery')
-      .select('*')
-      .lte('age', 23)
-      .lte('market_value', 5_000_000)
-      .gte('season_minutes', 1800)
-      .order('season_minutes', { ascending: false })
-      .limit(8),
-    supabase
-      .from('discovery_signals')
-      .select('id, signal_type, score, rationale, player_id, players(full_name, image_url)')
-      .eq('is_current', true)
-      .order('score', { ascending: false })
-      .limit(6),
-  ]);
+  // Every list runs on the indexed cached columns — Radar answers "what
+  // moved" in milliseconds regardless of population size.
+  const cols = cachedPlayerColumns(false);
+  const [risersQ, declinersQ, u21RisersQ, contractWindowQ, emergingQ, { data: signals }] =
+    await Promise.all([
+      supabase
+        .from('players')
+        .select(cols)
+        .gt('cached_value_change_pct', 0)
+        .gte('cached_season_minutes', 450)
+        .order('cached_value_change_pct', { ascending: false })
+        .limit(8),
+      supabase
+        .from('players')
+        .select(cols)
+        .lt('cached_value_change_pct', 0)
+        .gte('cached_market_value', 1_000_000)
+        .order('cached_value_change_pct', { ascending: true })
+        .limit(8),
+      supabase
+        .from('players')
+        .select(cols)
+        .gte('date_of_birth', dobCutoff(22))
+        .gt('cached_value_change_pct', 0)
+        .order('cached_value_change_pct', { ascending: false })
+        .limit(8),
+      supabase
+        .from('players')
+        .select(cols)
+        .gte('cached_contract_expires', todayIso())
+        .lte('cached_contract_expires', monthsAhead(18))
+        .gte('cached_market_value', 2_000_000)
+        .order('cached_contract_expires', { ascending: true })
+        .limit(8),
+      supabase
+        .from('players')
+        .select(cols)
+        .gte('date_of_birth', dobCutoff(24))
+        .lte('cached_market_value', 5_000_000)
+        .gte('cached_season_minutes', 1800)
+        .order('cached_season_minutes', { ascending: false })
+        .limit(8),
+      supabase
+        .from('discovery_signals')
+        .select('id, signal_type, score, rationale, player_id, players(full_name, image_url)')
+        .eq('is_current', true)
+        .neq('signal_type', 'GBM_OPPORTUNITY')
+        .order('score', { ascending: false })
+        .limit(6),
+    ]);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rows = (r: { data: unknown }) => ((r.data ?? []) as any[]).map(fromCachedPlayer);
+  const risers = rows(risersQ);
+  const decliners = rows(declinersQ);
+  const u21Risers = rows(u21RisersQ);
+  const contractWindow = rows(contractWindowQ);
+  const emerging = rows(emergingQ);
 
   return (
     <AppShell eyebrow="Intelligence" title="Market Radar">
@@ -83,7 +90,7 @@ export default async function RadarPage() {
         title="Rapid value growth"
         subtitle="Strongest 12-month rises, 450+ minutes this season"
         href="/players?sort=growth"
-        players={(risers ?? []) as PlayerCardData[]}
+        players={risers}
         empty="No positive value trends recorded."
       />
 
@@ -91,7 +98,7 @@ export default async function RadarPage() {
         title="U21 risers"
         subtitle="Under-21s with rising value"
         href="/players?ageMax=21&sort=growth"
-        players={(u21Risers ?? []) as PlayerCardData[]}
+        players={u21Risers}
         empty="No U21 value rises recorded."
       />
 
@@ -99,7 +106,7 @@ export default async function RadarPage() {
         title="Contract window closing"
         subtitle="€2m+ players inside 18 months of expiry"
         href="/players?contract=18&sort=value"
-        players={(contractWindow ?? []) as PlayerCardData[]}
+        players={contractWindow}
         empty="No expiring contracts recorded."
       />
 
@@ -107,7 +114,7 @@ export default async function RadarPage() {
         title="Emerging at low value"
         subtitle="≤23 years, ≤€5m, 1,800+ minutes — playing more than their price"
         href="/players?ageMax=23&maxValue=5&minMinutes=1800&sort=minutes"
-        players={(emerging ?? []) as PlayerCardData[]}
+        players={emerging}
         empty="No emerging low-value profiles above the minutes floor."
       />
 
@@ -115,7 +122,7 @@ export default async function RadarPage() {
         title="Value declines"
         subtitle="Falling valuations — context required before conclusions"
         href="/players?sort=growth"
-        players={(decliners ?? []) as PlayerCardData[]}
+        players={decliners}
         empty="No negative value trends recorded."
       />
 
