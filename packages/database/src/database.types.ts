@@ -7,30 +7,10 @@ export type Json =
   | Json[]
 
 export type Database = {
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.15"
   }
   public: {
     Tables: {
@@ -768,6 +748,27 @@ export type Database = {
           description?: string | null
           id?: string
           match_method?: string
+        }
+        Relationships: []
+      }
+      gbm_target_markets: {
+        Row: {
+          citizenship_target: boolean
+          country_name: string
+          league_target: boolean
+          note: string | null
+        }
+        Insert: {
+          citizenship_target?: boolean
+          country_name: string
+          league_target?: boolean
+          note?: string | null
+        }
+        Update: {
+          citizenship_target?: boolean
+          country_name?: string
+          league_target?: boolean
+          note?: string | null
         }
         Relationships: []
       }
@@ -2385,6 +2386,13 @@ export type Database = {
         Row: {
           birth_country_id: string | null
           birth_place: string | null
+          cached_contract_expires: string | null
+          cached_league: string | null
+          cached_market_value: number | null
+          cached_opportunity: number | null
+          cached_season_minutes: number | null
+          cached_value_change_pct: number | null
+          caches_refreshed_at: string | null
           created_at: string
           current_club_id: string | null
           data_confidence: number
@@ -2413,6 +2421,13 @@ export type Database = {
         Insert: {
           birth_country_id?: string | null
           birth_place?: string | null
+          cached_contract_expires?: string | null
+          cached_league?: string | null
+          cached_market_value?: number | null
+          cached_opportunity?: number | null
+          cached_season_minutes?: number | null
+          cached_value_change_pct?: number | null
+          caches_refreshed_at?: string | null
           created_at?: string
           current_club_id?: string | null
           data_confidence?: number
@@ -2441,6 +2456,13 @@ export type Database = {
         Update: {
           birth_country_id?: string | null
           birth_place?: string | null
+          cached_contract_expires?: string | null
+          cached_league?: string | null
+          cached_market_value?: number | null
+          cached_opportunity?: number | null
+          cached_season_minutes?: number | null
+          cached_value_change_pct?: number | null
+          caches_refreshed_at?: string | null
           created_at?: string
           current_club_id?: string | null
           data_confidence?: number
@@ -3467,6 +3489,7 @@ export type Database = {
           date_of_birth: string | null
           foot: Database["public"]["Enums"]["preferred_foot"] | null
           full_name: string | null
+          gbm_opportunity: number | null
           gbm_status: string | null
           goals_per90: number | null
           height_cm: number | null
@@ -3647,6 +3670,7 @@ export type Database = {
         Args: { player_ids: string[] }
         Returns: undefined
       }
+      gbm_refresh_player_caches: { Args: never; Returns: number }
     }
     Enums: {
       competition_gender: "MALE" | "FEMALE" | "MIXED" | "UNKNOWN"
@@ -3834,9 +3858,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       competition_gender: ["MALE", "FEMALE", "MIXED", "UNKNOWN"],
@@ -3908,4 +3929,3 @@ export const Constants = {
     },
   },
 } as const
-
