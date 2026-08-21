@@ -1,11 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 
 export function LoginForm() {
-  const router = useRouter();
   const params = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -32,8 +31,12 @@ export function LoginForm() {
       return;
     }
 
-    router.replace(params.get('next') || '/');
-    router.refresh();
+    // Full document navigation at the auth boundary: the server must re-read
+    // the fresh session cookie everywhere, and a router.replace immediately
+    // followed by router.refresh can abort its own in-flight navigation —
+    // which strands the route's loading skeleton.
+    const next = params.get('next') || '/';
+    window.location.assign(next.startsWith('/') ? next : '/');
   }
 
   return (

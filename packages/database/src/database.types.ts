@@ -311,6 +311,13 @@ export type Database = {
             foreignKeyName: "competition_external_ids_competition_id_fkey"
             columns: ["competition_id"]
             isOneToOne: false
+            referencedRelation: "v_league_options"
+            referencedColumns: ["league_id"]
+          },
+          {
+            foreignKeyName: "competition_external_ids_competition_id_fkey"
+            columns: ["competition_id"]
+            isOneToOne: false
             referencedRelation: "v_player_discovery"
             referencedColumns: ["league_id"]
           },
@@ -1130,6 +1137,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "competitions"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "matches_competition_id_fkey"
+            columns: ["competition_id"]
+            isOneToOne: false
+            referencedRelation: "v_league_options"
+            referencedColumns: ["league_id"]
           },
           {
             foreignKeyName: "matches_competition_id_fkey"
@@ -2127,6 +2141,13 @@ export type Database = {
             foreignKeyName: "player_season_stats_competition_id_fkey"
             columns: ["competition_id"]
             isOneToOne: false
+            referencedRelation: "v_league_options"
+            referencedColumns: ["league_id"]
+          },
+          {
+            foreignKeyName: "player_season_stats_competition_id_fkey"
+            columns: ["competition_id"]
+            isOneToOne: false
             referencedRelation: "v_player_discovery"
             referencedColumns: ["league_id"]
           },
@@ -2301,6 +2322,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "competitions"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "player_team_history_competition_id_fkey"
+            columns: ["competition_id"]
+            isOneToOne: false
+            referencedRelation: "v_league_options"
+            referencedColumns: ["league_id"]
           },
           {
             foreignKeyName: "player_team_history_competition_id_fkey"
@@ -2904,6 +2932,13 @@ export type Database = {
             foreignKeyName: "seasons_competition_id_fkey"
             columns: ["competition_id"]
             isOneToOne: false
+            referencedRelation: "v_league_options"
+            referencedColumns: ["league_id"]
+          },
+          {
+            foreignKeyName: "seasons_competition_id_fkey"
+            columns: ["competition_id"]
+            isOneToOne: false
             referencedRelation: "v_player_discovery"
             referencedColumns: ["league_id"]
           },
@@ -3358,6 +3393,21 @@ export type Database = {
         }
         Relationships: []
       }
+      v_league_options: {
+        Row: {
+          league_id: string | null
+          league_name: string | null
+        }
+        Insert: {
+          league_id?: string | null
+          league_name?: string | null
+        }
+        Update: {
+          league_id?: string | null
+          league_name?: string | null
+        }
+        Relationships: []
+      }
       v_player_current_value: {
         Row: {
           currency: string | null
@@ -3562,7 +3612,9 @@ export type Database = {
           date_of_birth: string | null
           foot: Database["public"]["Enums"]["preferred_foot"] | null
           full_name: string | null
+          gbm_status: string | null
           height_cm: number | null
+          image_url: string | null
           market_value: number | null
           nationality: string | null
           player_id: string | null

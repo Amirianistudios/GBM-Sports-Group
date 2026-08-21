@@ -1,20 +1,24 @@
 @import "tailwindcss";
 
 /* ==========================================================================
-   GBM INTELLIGENCE — DESIGN TOKENS
+   GBM INTELLIGENCE — DESIGN SYSTEM
 
-   Direction: the matchday teamsheet. Scouts read dense lists of names, not
-   airy dashboards, and they read them on a phone in a stand. So: tight rows,
-   tabular numerals everywhere, and a signature "source stripe" that shows
-   which providers back each fact.
+   Direction: the matchday teamsheet, grown into a product. Scouts read dense
+   lists of names — often on a phone in a stand — so the system keeps tight
+   rows and tabular numerals, and adds the layer a professional product needs:
+   a real elevation scale, a motion vocabulary, and one card grammar used
+   everywhere so the whole platform reads as a single instrument.
 
    Colour carries meaning, never decoration:
-     teal  = corroborated by more than one source
+     teal  = corroborated by more than one source; also GBM's own layer
      ochre = single source / needs verification
      brick = sources disagree
    Teal/ochre rather than green/red so the states stay distinguishable for
    colour-blind users, and because "red = bad" is wrong here — an unverified
    fact isn't bad, it's just unconfirmed.
+
+   Motion: 120–200ms, one easing curve, only on state change (hover, focus,
+   tab switch, skeleton). Nothing moves for decoration.
    ========================================================================== */
 
 @theme {
@@ -22,13 +26,13 @@
   --color-ink:        #0F1419;
   --color-ink-2:      #161C24;
   --color-ink-3:      #1F2831;
-  --color-chalk:      #EDF0EE;
+  --color-chalk:      #F1F3F0;
   --color-chalk-2:    #FFFFFF;
-  --color-line:       #D5DAD7;
+  --color-line:       #D8DDDA;
   --color-line-dark:  #2A343E;
 
   /* Text */
-  --color-slate:      #5A6672;
+  --color-slate:      #57626E;
   --color-slate-dim:  #8A949E;
 
   /* Semantic — provenance states */
@@ -45,18 +49,32 @@
   --font-body:    var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
   --font-mono:    var(--font-plex-mono), ui-monospace, "SF Mono", monospace;
 
-  --radius-card: 4px;
+  --radius-card: 6px;
 }
 
 /* --------------------------------------------------------------------------
-   Base
+   Base tokens. Dark values are defined and ready; the shipped experience is
+   the light instrument — dark mode is a later flip, not a second system.
    -------------------------------------------------------------------------- */
 :root {
   --bg: var(--color-chalk);
   --surface: var(--color-chalk-2);
+  --surface-2: #FAFBFA;
   --fg: var(--color-ink);
   --muted: var(--color-slate);
   --border: var(--color-line);
+  --border-strong: #C3C9C5;
+
+  /* Elevation — soft ink-tinted shadows tuned for the chalk ground. */
+  --shadow-0: 0 1px 2px rgba(15, 20, 25, 0.04);
+  --shadow-1: 0 1px 2px rgba(15, 20, 25, 0.05), 0 4px 12px rgba(15, 20, 25, 0.06);
+  --shadow-2: 0 2px 4px rgba(15, 20, 25, 0.06), 0 12px 28px rgba(15, 20, 25, 0.10);
+
+  /* Motion */
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --t-fast: 120ms;
+  --t-med: 180ms;
+
   color-scheme: light;
 }
 
@@ -64,9 +82,14 @@
   :root:not([data-theme="light"]) {
     --bg: var(--color-ink);
     --surface: var(--color-ink-2);
+    --surface-2: var(--color-ink-3);
     --fg: var(--color-chalk);
     --muted: var(--color-slate-dim);
     --border: var(--color-line-dark);
+    --border-strong: #3A4650;
+    --shadow-0: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.35), 0 4px 12px rgba(0, 0, 0, 0.35);
+    --shadow-2: 0 2px 4px rgba(0, 0, 0, 0.4), 0 12px 28px rgba(0, 0, 0, 0.45);
     color-scheme: dark;
   }
 }
@@ -74,9 +97,14 @@
 :root[data-theme="dark"] {
   --bg: var(--color-ink);
   --surface: var(--color-ink-2);
+  --surface-2: var(--color-ink-3);
   --fg: var(--color-chalk);
   --muted: var(--color-slate-dim);
   --border: var(--color-line-dark);
+  --border-strong: #3A4650;
+  --shadow-0: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.35), 0 4px 12px rgba(0, 0, 0, 0.35);
+  --shadow-2: 0 2px 4px rgba(0, 0, 0, 0.4), 0 12px 28px rgba(0, 0, 0, 0.45);
   color-scheme: dark;
 }
 
@@ -107,11 +135,56 @@ body {
   color: var(--muted);
 }
 
+/* --------------------------------------------------------------------------
+   THE CARD GRAMMAR — one treatment for every card in the product.
+   .surface stays for flat sheets (tables, lists); .card is the elevated
+   member of the family; .card-interactive lifts on hover, settles on press.
+   -------------------------------------------------------------------------- */
 .surface {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-card);
 }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-0);
+}
+
+.card-interactive {
+  transition: box-shadow var(--t-med) var(--ease),
+              transform var(--t-med) var(--ease),
+              border-color var(--t-med) var(--ease);
+}
+.card-interactive:hover {
+  box-shadow: var(--shadow-1);
+  transform: translateY(-1px);
+  border-color: var(--border-strong);
+}
+.card-interactive:active {
+  transform: translateY(0);
+  box-shadow: var(--shadow-0);
+}
+
+/* Player card grid: compact cards, many per row — a scout scans volume. */
+.player-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 0.75rem;
+}
+
+/* Portrait treatment — identity everywhere, one consistent shape. */
+.portrait {
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.flag { font-size: 0.9em; line-height: 1; }
 
 /* --------------------------------------------------------------------------
    SIGNATURE ELEMENT — the source stripe.
@@ -135,7 +208,7 @@ body {
   padding: 0.75rem 1rem;
   border-bottom: 1px solid var(--border);
   min-height: 56px;
-  transition: background 120ms ease;
+  transition: background var(--t-fast) var(--ease);
 }
 .sheet-row:hover { background: color-mix(in srgb, var(--fg) 4%, transparent); }
 .sheet-row:active { background: color-mix(in srgb, var(--fg) 7%, transparent); }
@@ -148,7 +221,7 @@ body {
   font-size: 0.6875rem; font-weight: 600;
   padding: 0.125rem 0.375rem;
   border: 1px solid var(--border);
-  border-radius: 2px;
+  border-radius: 3px;
   color: var(--muted);
   white-space: nowrap;
 }
@@ -158,7 +231,7 @@ body {
   font-size: 0.6875rem; font-weight: 600;
   letter-spacing: 0.02em;
   padding: 0.1875rem 0.4375rem;
-  border-radius: 2px;
+  border-radius: 3px;
   border: 1px solid transparent;
   white-space: nowrap;
 }
@@ -166,6 +239,66 @@ body {
 .badge-attention { background: color-mix(in srgb, var(--color-attention) 15%, transparent); color: var(--color-attention-2); border-color: color-mix(in srgb, var(--color-attention) 32%, transparent); }
 .badge-conflict  { background: color-mix(in srgb, var(--color-conflict) 14%, transparent);  color: var(--color-conflict);    border-color: color-mix(in srgb, var(--color-conflict) 30%, transparent); }
 .badge-neutral   { background: color-mix(in srgb, var(--fg) 7%, transparent); color: var(--muted); border-color: var(--border); }
+.badge-gbm       { background: var(--color-gbm); color: #fff; border-color: var(--color-gbm); }
+
+/* Trend text — direction encoded in glyph AND colour, never colour alone. */
+.trend-up   { color: var(--color-verified-2); }
+.trend-down { color: var(--color-conflict); }
+.trend-flat { color: var(--muted); }
+
+/* --------------------------------------------------------------------------
+   Tabs — profile sections, underline slides via border, content cross-fades.
+   -------------------------------------------------------------------------- */
+.tab-bar {
+  display: flex; gap: 0.25rem;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.tab-bar::-webkit-scrollbar { display: none; }
+.tab {
+  padding: 0.625rem 0.875rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--muted);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  white-space: nowrap;
+  transition: color var(--t-fast) var(--ease), border-color var(--t-med) var(--ease);
+}
+.tab:hover { color: var(--fg); }
+.tab[aria-selected="true"] {
+  color: var(--fg);
+  border-bottom-color: var(--color-verified);
+}
+
+/* --------------------------------------------------------------------------
+   Skeletons — layout-matched, shimmer restrained, killed for reduced motion.
+   -------------------------------------------------------------------------- */
+.skeleton {
+  background: color-mix(in srgb, var(--fg) 7%, transparent);
+  border-radius: 4px;
+  position: relative;
+  overflow: hidden;
+}
+.skeleton::after {
+  content: "";
+  position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--surface) 60%, transparent), transparent);
+  animation: shimmer 1.4s var(--ease) infinite;
+}
+@keyframes shimmer {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(100%); }
+}
+
+/* Stat strip — the compact headline-numbers row that replaced count tiles. */
+.stat-strip {
+  display: flex; align-items: baseline; gap: 0.375rem;
+  white-space: nowrap;
+}
+.stat-strip + .stat-strip { border-left: 1px solid var(--border); padding-left: 1rem; }
 
 /* Accessibility floor */
 :where(a, button, input, select, textarea, [tabindex]):focus-visible {

@@ -1,4 +1,4 @@
-import { formatPer90 } from '@/lib/format';
+import { formatPer90, leagueLabel } from '@/lib/format';
 
 export interface SeasonStatRow {
   id: string;
@@ -59,7 +59,7 @@ export function SeasonStatsTable({ rows }: { rows: SeasonStatRow[] }) {
           {rows.map((r) => (
             <tr key={r.id} style={{ borderBottom: '1px solid var(--border)' }}>
               <td className="data px-4 py-2 whitespace-nowrap">{r.season_name ?? '—'}</td>
-              <td className="px-2 py-2 max-w-[12rem] truncate">{r.competition_name ?? 'Unresolved competition'}</td>
+              <td className="px-2 py-2 max-w-[12rem] truncate">{leagueLabel(r.competition_name) ?? 'Unresolved competition'}</td>
               <td className="px-2 py-2 max-w-[11rem] truncate" style={{ color: 'var(--muted)' }}>
                 {r.club_name ?? '—'}
               </td>

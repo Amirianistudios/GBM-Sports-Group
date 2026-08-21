@@ -1,7 +1,9 @@
 import { createClient } from '@/lib/supabase/server';
 import { AppShell } from '@/components/app-shell';
-import { PlayerRow, type PlayerRowData } from '@/components/player-row';
+import { PlayerCard, PlayerListRow, type PlayerCardData } from '@/components/player-card';
 import { PlayerFilters } from '@/components/player-filters';
+import { Pagination } from '@/components/pagination';
+import { ViewToggle } from '@/components/view-toggle';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,6 +12,8 @@ type SearchParams = Promise<Record<string, string | undefined>>;
 type Foot = 'LEFT' | 'RIGHT' | 'BOTH' | 'UNKNOWN';
 const FOOT_VALUES: Foot[] = ['LEFT', 'RIGHT', 'BOTH', 'UNKNOWN'];
 
+const PAGE_SIZE = 48;
+
 /**
  * PLAYER DISCOVERY.
  * Reads v_player_discovery: one row per player carrying identity, value,
@@ -17,6 +21,9 @@ const FOOT_VALUES: Foot[] = ['LEFT', 'RIGHT', 'BOTH', 'UNKNOWN'];
  * strongest current signal. Advanced-metric filters appear only when a
  * licensed provider supplies the columns — nothing here is derived from data
  * the platform does not hold.
+ *
+ * Pagination fetches PAGE_SIZE + 1 rows: "next page exists" without paying a
+ * full-view COUNT, which on a computed view costs as much as the page.
  */
 export default async function PlayersPage({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
@@ -60,23 +67,38 @@ export default async function PlayersPage({ searchParams }: { searchParams: Sear
   else if (sort === 'recent') query = query.order('added_at', { ascending: false });
   else query = query.order('full_name', { ascending: true });
 
-  const { data, error } = await query.limit(100);
+  const page = Math.max(1, Number(sp.page) || 1);
+  const from = (page - 1) * PAGE_SIZE;
 
-  const [{ data: positions }, { data: nationalities }, { data: leagueRows }] = await Promise.all([
-    supabase.from('players').select('primary_position').not('primary_position', 'is', null),
-    supabase.from('countries').select('name').order('name'),
-    supabase.from('v_player_discovery').select('league_name').not('league_name', 'is', null),
-  ]);
+  // Filter options come from tables, not from evaluating the discovery view:
+  // positions from players, countries from the reference table, leagues from
+  // the dedicated options view — all millisecond queries.
+  const [{ data, error }, { data: positions }, { data: nationalities }, { data: leagueRows }] =
+    await Promise.all([
+      query.range(from, from + PAGE_SIZE),
+      supabase.from('players').select('primary_position').not('primary_position', 'is', null),
+      supabase.from('countries').select('name').order('name'),
+      supabase.from('v_league_options').select('league_name').order('league_name'),
+    ]);
+
+  const hasNext = (data?.length ?? 0) > PAGE_SIZE;
+  const players = ((data ?? []) as PlayerCardData[]).slice(0, PAGE_SIZE);
+  const view = sp.view === 'grid' ? 'grid' : 'list';
 
   const positionOptions = Array.from(
     new Set((positions ?? []).map((p) => p.primary_position).filter(Boolean) as string[]),
   ).sort();
-  const leagueOptions = Array.from(
-    new Set((leagueRows ?? []).map((l) => l.league_name).filter(Boolean) as string[]),
-  ).sort();
+  const leagueOptions = ((leagueRows ?? []).map((l) => l.league_name).filter(Boolean) as string[]);
+
+  const makeHref = (p: number) => {
+    const params = new URLSearchParams();
+    for (const [k, v] of Object.entries(sp)) if (v && k !== 'page') params.set(k, v);
+    if (p > 1) params.set('page', String(p));
+    return `/players${params.size ? `?${params}` : ''}`;
+  };
 
   return (
-    <AppShell eyebrow="Research" title="Discovery">
+    <AppShell eyebrow="Scouting" title="Players" action={<ViewToggle />}>
       <PlayerFilters
         positions={positionOptions}
         nationalities={(nationalities ?? []).map((n) => n.name)}
@@ -85,32 +107,44 @@ export default async function PlayersPage({ searchParams }: { searchParams: Sear
 
       <div className="px-4 md:px-6 py-2 flex items-baseline justify-between">
         <p className="eyebrow">
-          {error ? 'Query failed' : `${data?.length ?? 0} player${data?.length === 1 ? '' : 's'}`}
+          {error
+            ? 'Query failed'
+            : `${players.length}${hasNext ? '+' : ''} player${players.length === 1 ? '' : 's'}${page > 1 ? ` · page ${page}` : ''}`}
         </p>
-        <p className="eyebrow">Counting statistics · {data?.[0]?.season_name ?? 'season'}</p>
+        <p className="eyebrow hidden sm:block">Counting statistics · {players[0]?.season_name ?? 'season'}</p>
       </div>
 
-      <div className="surface mx-4 md:mx-6 overflow-hidden">
-        {error ? (
-          <div className="px-4 py-10 text-center">
-            <p className="font-semibold text-sm" style={{ color: 'var(--color-conflict)' }}>
-              Could not load players
-            </p>
-            <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>{error.message}</p>
-          </div>
-        ) : (data ?? []).length === 0 ? (
-          <div className="px-4 py-12 text-center">
-            <p className="font-semibold text-sm">No players match these filters</p>
-            <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
-              Widen the age range or lower the statistical floors to see more.
-            </p>
-          </div>
-        ) : (
-          (data as PlayerRowData[]).map((p) => <PlayerRow key={p.player_id} player={p} />)
-        )}
-      </div>
+      {error ? (
+        <div className="surface mx-4 md:mx-6 px-4 py-10 text-center">
+          <p className="font-semibold text-sm" style={{ color: 'var(--color-conflict)' }}>
+            Could not load players
+          </p>
+          <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>{error.message}</p>
+        </div>
+      ) : players.length === 0 ? (
+        <div className="surface mx-4 md:mx-6 px-4 py-12 text-center">
+          <p className="font-semibold text-sm">No players match these filters</p>
+          <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
+            Widen the age range or lower the statistical floors to see more.
+          </p>
+        </div>
+      ) : view === 'grid' ? (
+        <div className="player-grid px-4 md:px-6">
+          {players.map((p, i) => (
+            <PlayerCard key={p.player_id} player={p} priority={i < 6} />
+          ))}
+        </div>
+      ) : (
+        <div className="surface mx-4 md:mx-6 overflow-hidden">
+          {players.map((p) => (
+            <PlayerListRow key={p.player_id} player={p} />
+          ))}
+        </div>
+      )}
 
-      <p className="px-4 md:px-6 mt-3 text-xs leading-relaxed" style={{ color: 'var(--muted)' }}>
+      <Pagination page={page} hasNext={hasNext} makeHref={makeHref} />
+
+      <p className="px-4 md:px-6 mt-1 text-xs leading-relaxed" style={{ color: 'var(--muted)' }}>
         Statistical filters cover counting statistics from the connected dataset. Defensive and
         possession metrics (duels, interceptions, xG…) appear when a licensed statistics provider is
         connected — they are never derived or estimated.
