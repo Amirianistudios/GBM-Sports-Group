@@ -54,7 +54,7 @@ export default function TeamPage() {
               <div
                 aria-hidden="true"
                 className="w-12 h-12 rounded-[6px] flex items-center justify-center font-bold text-lg mb-3"
-                style={{ background: 'var(--color-gbm)', color: '#fff', letterSpacing: '0.02em' }}
+                style={{ background: 'var(--color-gbm)', color: '#14100A', letterSpacing: '0.02em' }}
               >
                 {m.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join('')}
               </div>

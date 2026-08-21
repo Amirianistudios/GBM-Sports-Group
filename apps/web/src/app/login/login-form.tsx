@@ -113,7 +113,7 @@ export function LoginForm() {
             type="submit"
             disabled={status.kind === 'working'}
             className="w-full py-2.5 rounded-[3px] font-semibold text-sm disabled:opacity-60"
-            style={{ background: 'var(--color-verified)', color: '#fff' }}
+            style={{ background: 'var(--color-verified)', color: '#06201C' }}
           >
             {status.kind === 'working' ? 'Signing in…' : 'Sign in'}
           </button>

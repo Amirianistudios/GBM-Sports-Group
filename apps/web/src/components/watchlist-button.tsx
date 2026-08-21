@@ -82,7 +82,7 @@ export function WatchlistButton({ playerId }: { playerId: string }) {
         className="px-3 py-2 rounded-[3px] text-sm font-semibold disabled:opacity-50"
         style={{
           background: inList ? 'var(--color-verified)' : 'var(--bg)',
-          color: inList ? '#fff' : 'var(--fg)',
+          color: inList ? '#06201C' : 'var(--fg)',
           border: `1px solid ${inList ? 'var(--color-verified)' : 'var(--border)'}`,
         }}
       >

@@ -3,80 +3,121 @@ import { createClient } from '@/lib/supabase/server';
 import { AppShell } from '@/components/app-shell';
 import { PlayerListRow, type PlayerCardData } from '@/components/player-card';
 import { PlayerPhoto } from '@/components/player-photo';
-import { formatAge, formatDate, positionCode, statusLabel, watchlistStatusClass } from '@/lib/format';
+import { cachedPlayerColumns, fromCachedPlayer, monthsAhead, todayIso } from '@/lib/card-data';
+import { ALL_TARGET_COUNTRIES } from '@/lib/markets';
+import { formatAge, positionCode, statusLabel, watchlistStatusClass } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * Clock reads live outside the component body. The page is force-dynamic, so
- * every request genuinely re-evaluates these — but React's purity rule (rightly)
- * refuses to see `Date.now()` inline in a component, since that is how stale
- * prerenders and hydration mismatches happen.
+ * GBM MORNING BRIEF.
+ * The first screen after login reads like the agency's daily briefing:
+ * what needs attention, where the opportunities are moving, what entered
+ * the markets GBM actually works. Every number is a live production fact;
+ * list queries run on indexed cached columns so the brief opens instantly.
+ *
+ * Clock reads live outside the component body — the page is force-dynamic,
+ * and React's purity rule (rightly) refuses Date.now() inline in render.
  */
-const CONTRACT_HORIZON_DAYS = 547; // 18 months
-
-function contractHorizonDate(): string {
-  return new Date(Date.now() + CONTRACT_HORIZON_DAYS * 86_400_000).toISOString().slice(0, 10);
-}
-
 function greetingForNow(): string {
   const hour = new Date().getHours();
   if (hour < 12) return 'Good morning';
   return hour < 18 ? 'Good afternoon' : 'Good evening';
 }
 
-/**
- * THE INTELLIGENCE FEED.
- * The first screen after login answers "what should I pay attention to
- * today?" — rising players, emerging U21s, contract situations, research
- * queues and the scout's own work — before it reports any database totals.
- * Every number on this page is a live production fact; nothing is estimated.
- */
+function dateLine(): string {
+  return new Date().toLocaleDateString('en-GB', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+}
+
 export default async function DashboardPage() {
   const supabase = await createClient();
   const { data: auth } = await supabase.auth.getUser();
   const userId = auth.user?.id;
 
+  const cachedCols = cachedPlayerColumns(false);
+
   const [
     { count: playerCount },
-    { count: providerCount },
-    { data: rising },
-    { data: emergingU21 },
-    { data: contractOpps },
-    { data: repOpps },
-    { data: signals },
+    { count: targetMarketCount },
     { count: expiringCount },
     { count: noAgencyCount },
+    attention,
+    rising,
+    gainers,
+    fallers,
+    newInMarkets,
+    contractOpps,
+    { data: repOpps },
     { data: portfolio },
-    { data: watched },
-    { data: priorities },
     { data: assigned },
-    { data: recentReports },
-    { data: recentNotes },
+    { data: priorities },
   ] = await Promise.all([
     supabase.from('players').select('*', { count: 'exact', head: true }),
-    supabase.from('data_providers').select('*', { count: 'exact', head: true }).eq('is_active', true),
     supabase
-      .from('v_player_discovery')
-      .select('*')
-      .not('value_change_12m_pct', 'is', null)
-      .gte('season_minutes', 450)
-      .order('value_change_12m_pct', { ascending: false, nullsFirst: false })
+      .from('players')
+      .select('id, countries!players_nationality_country_id_fkey!inner(name)', { count: 'exact', head: true })
+      .in('countries.name', ALL_TARGET_COUNTRIES),
+    supabase
+      .from('players')
+      .select('*', { count: 'exact', head: true })
+      .gte('cached_contract_expires', todayIso())
+      .lte('cached_contract_expires', monthsAhead(18)),
+    supabase
+      .from('representation_records')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'NO_AGENCY_LISTED')
+      .eq('is_current', true),
+    // Requiring attention today: relevant players entering the final six months.
+    supabase
+      .from('players')
+      .select(cachedCols)
+      .gte('cached_contract_expires', todayIso())
+      .lte('cached_contract_expires', monthsAhead(6))
+      .order('cached_opportunity', { ascending: false, nullsFirst: false })
       .limit(5),
+    // Rising opportunities: meaningful growth, ranked by GBM fit.
     supabase
-      .from('v_player_discovery')
-      .select('*')
-      .lte('age', 21)
-      .gte('season_minutes', 900)
-      .order('market_value', { ascending: false, nullsFirst: false })
+      .from('players')
+      .select(cachedCols)
+      .gte('cached_value_change_pct', 25)
+      .gte('cached_season_minutes', 450)
+      .order('cached_opportunity', { ascending: false, nullsFirst: false })
       .limit(5),
+    // Market movements: the biggest swings either way.
     supabase
-      .from('v_player_discovery')
-      .select('*')
-      .not('contract_months_remaining', 'is', null)
-      .lte('contract_months_remaining', 18)
-      .gte('market_value', 1_000_000)
-      .order('market_value', { ascending: false, nullsFirst: false })
+      .from('players')
+      .select(cachedCols)
+      .not('cached_value_change_pct', 'is', null)
+      .gte('cached_season_minutes', 450)
+      .order('cached_value_change_pct', { ascending: false })
+      .limit(3),
+    supabase
+      .from('players')
+      .select(cachedCols)
+      .not('cached_value_change_pct', 'is', null)
+      .gte('cached_season_minutes', 450)
+      .order('cached_value_change_pct', { ascending: true })
+      .limit(3),
+    // New players entering GBM markets.
+    supabase
+      .from('players')
+      .select(cachedPlayerColumns(true))
+      .in('nationality.name', ALL_TARGET_COUNTRIES)
+      .order('created_at', { ascending: false })
+      .limit(5),
+    // Contract situations inside the 18-month window, ranked by GBM fit.
+    supabase
+      .from('players')
+      .select(cachedCols)
+      .gte('cached_contract_expires', todayIso())
+      .lte('cached_contract_expires', monthsAhead(18))
+      .gte('cached_market_value', 250_000)
+      .order('cached_opportunity', { ascending: false, nullsFirst: false })
       .limit(5),
     supabase
       .from('v_representation_opportunities')
@@ -87,36 +128,10 @@ export default async function DashboardPage() {
       .order('value_change_12m_pct', { ascending: false, nullsFirst: false })
       .limit(5),
     supabase
-      .from('discovery_signals')
-      .select('id, signal_type, score, rationale, player_id, players(full_name, image_url)')
-      .eq('is_current', true)
-      .order('score', { ascending: false })
-      .limit(4),
-    supabase
-      .from('contracts')
-      .select('*', { count: 'exact', head: true })
-      .lte('expires_on', contractHorizonDate()),
-    supabase
-      .from('representation_records')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'NO_AGENCY_LISTED')
-      .eq('is_current', true),
-    supabase
       .from('players')
       .select('id, full_name, image_url, gbm_status')
       .not('gbm_status', 'in', '("NONE","UNTRACKED")')
       .limit(6),
-    supabase
-      .from('watchlist_players')
-      .select('id, status, priority, player_id, added_at, players(full_name, image_url, primary_position, date_of_birth, clubs(name))')
-      .order('added_at', { ascending: false })
-      .limit(5),
-    supabase
-      .from('watchlist_players')
-      .select('id, status, priority, player_id, players(full_name, image_url, primary_position, date_of_birth, clubs(name))')
-      .or('status.eq.HIGH_PRIORITY,priority.gte.4')
-      .order('priority', { ascending: false, nullsFirst: false })
-      .limit(5),
     userId
       ? supabase
           .from('watchlist_players')
@@ -127,98 +142,79 @@ export default async function DashboardPage() {
           .limit(6)
       : Promise.resolve({ data: [] as never[] }),
     supabase
-      .from('scouting_reports')
-      .select('id, player_id, observed_on, overall_rating, recommendation, is_draft, players(full_name, image_url)')
-      .order('created_at', { ascending: false })
-      .limit(4),
-    supabase
-      .from('player_notes')
-      .select('id, player_id, body, created_at, players(full_name, image_url)')
-      .order('created_at', { ascending: false })
-      .limit(4),
+      .from('watchlist_players')
+      .select('id, status, priority, player_id, players(full_name, image_url, primary_position, date_of_birth, clubs(name))')
+      .or('status.eq.HIGH_PRIORITY,priority.gte.4')
+      .order('priority', { ascending: false, nullsFirst: false })
+      .limit(5),
   ]);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rows = (r: { data: unknown }) => ((r.data ?? []) as any[]).map(fromCachedPlayer);
+  const attentionRows = rows(attention);
+  const risingRows = rows(rising);
+  const newMarketRows = rows(newInMarkets);
+  const contractRows = rows(contractOpps);
+  const movementRows = [...rows(gainers), ...rows(fallers)].sort(
+    (a, b) => Math.abs(b.value_change_12m_pct ?? 0) - Math.abs(a.value_change_12m_pct ?? 0),
+  );
+
   const greeting = greetingForNow();
-  const hasActivity = (recentReports ?? []).length > 0 || (recentNotes ?? []).length > 0;
-  const hasWork = (assigned ?? []).length > 0 || (priorities ?? []).length > 0 || (watched ?? []).length > 0;
 
   return (
-    <AppShell eyebrow={greeting} title="Intelligence feed">
-      {/* Headline counts, compressed to one strip — intelligence outranks totals. */}
-      <section className="px-4 md:px-6 pt-3 pb-1">
-        <div className="flex flex-wrap gap-x-4 gap-y-1.5 items-baseline">
-          <Stat href="/players" value={playerCount ?? 0} label="players" />
-          <Stat href="/representation" value={noAgencyCount ?? 0} label="no agency listed" />
-          <Stat href="/players?contract=18" value={expiringCount ?? 0} label="contracts ≤18 mo" />
-          <Stat href="/data" value={providerCount ?? 0} label="providers" />
+    <AppShell eyebrow={greeting} title="Morning Brief">
+      {/* Masthead — the daily briefing header. */}
+      <section className="px-4 md:px-6 pt-3">
+        <div className="hero-surface px-4 py-4 md:px-6 md:py-5">
+          <p className="eyebrow" style={{ color: 'var(--color-gbm)' }}>GBM Sports Group · Internal</p>
+          <h2 className="text-2xl md:text-3xl font-bold tracking-tight mt-1">Morning Brief</h2>
+          <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>{dateLine()}</p>
+          <div className="flex flex-wrap gap-x-4 gap-y-1.5 items-baseline mt-4">
+            <Stat href="/players" value={playerCount ?? 0} label="players tracked" />
+            <Stat href="/discover" value={targetMarketCount ?? 0} label="in GBM markets" />
+            <Stat href="/players?contract=18" value={expiringCount ?? 0} label="contracts ≤18 mo" />
+            <Stat href="/representation" value={noAgencyCount ?? 0} label="no agency listed" />
+          </div>
         </div>
       </section>
 
-      {/* -------------------- The scout's own work first ------------------- */}
+      {/* 1 — players requiring attention today */}
+      <Feed title="Requiring attention" subtitle="Contracts entering the final six months, ranked by GBM fit" href="/players?contract=6">
+        {attentionRows.map((p) => <PlayerListRow key={p.player_id} player={p} />)}
+        {attentionRows.length === 0 && <Empty text="No contracts inside six months." />}
+      </Feed>
+
+      {/* 2 — scouting tasks */}
       {(assigned ?? []).length > 0 && (
-        <Feed title="Assigned to you" subtitle="Your open scouting tasks" href="/watchlists">
+        <Feed title="Your scouting tasks" subtitle="Assigned to you" href="/watchlists">
           {(assigned ?? []).map((wp) => <WatchRow key={wp.id} entry={wp} showReason />)}
         </Feed>
       )}
-
-      {/* ------------------------- Market intelligence --------------------- */}
-      <Feed title="Rising players" subtitle="Strongest 12-month value growth, 450+ minutes this season" href="/players?sort=growth">
-        {((rising ?? []) as PlayerCardData[]).map((p) => <PlayerListRow key={p.player_id} player={p} />)}
-        {(rising ?? []).length === 0 && <Empty text="No value-trend data yet." />}
-      </Feed>
-
-      <Feed title="Emerging U21" subtitle="Under-21s with real first-team minutes" href="/players?ageMax=21&minMinutes=900&sort=value">
-        {((emergingU21 ?? []) as PlayerCardData[]).map((p) => <PlayerListRow key={p.player_id} player={p} />)}
-        {(emergingU21 ?? []).length === 0 && <Empty text="No U21 players above the minutes floor." />}
-      </Feed>
-
-      <Feed title="Contract opportunities" subtitle="Valued players inside 18 months of expiry" href="/players?contract=18&sort=value">
-        {((contractOpps ?? []) as PlayerCardData[]).map((p) => <PlayerListRow key={p.player_id} player={p} />)}
-        {(contractOpps ?? []).length === 0 && <Empty text="No expiring contracts recorded." />}
-      </Feed>
-
-      {(signals ?? []).length > 0 && (
-        <Feed title="Recommended discoveries" subtitle="Computed from market value trend and representation state" href="/discover">
-          {(signals ?? []).map((s) => {
-            const p = Array.isArray(s.players) ? s.players[0] : s.players;
-            return (
-              <Link key={s.id} href={`/players/${s.player_id}`} className="sheet-row">
-                <div className="flex items-center gap-3">
-                  <PlayerPhoto src={p?.image_url ?? null} name={p?.full_name ?? '—'} size={40} />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold text-[0.9375rem]">{p?.full_name}</span>
-                      <span className="badge badge-neutral">{statusLabel(s.signal_type)}</span>
-                    </div>
-                    {s.rationale && (
-                      <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--muted)' }}>{s.rationale}</p>
-                    )}
-                  </div>
-                </div>
-              </Link>
-            );
-          })}
+      {(priorities ?? []).length > 0 && (
+        <Feed title="Priority targets" subtitle="High priority across all lists" href="/watchlists">
+          {(priorities ?? []).map((wp) => <WatchRow key={wp.id} entry={wp} />)}
         </Feed>
       )}
 
-      {/* ------------------------ Representation research ------------------ */}
-      <Feed title="Representation research" subtitle="Aged 15–23, source lists no agency" href="/representation">
-        <p
-          className="px-4 py-2 text-xs leading-relaxed"
-          style={{
-            background: 'color-mix(in srgb, var(--color-attention) 10%, transparent)',
-            color: 'var(--color-attention-2)',
-            borderBottom: '1px solid var(--border)',
-          }}
-        >
-          <strong>Unverified.</strong> “No agency listed” records what the source displayed. It is not
-          evidence a player is unrepresented — verify before any approach.
-        </p>
-        {((repOpps ?? []) as PlayerCardData[]).map((p) => <PlayerListRow key={p.player_id} player={p} />)}
-        {(repOpps ?? []).length === 0 && <Empty text="Nothing in the queue." />}
+      {/* 3 — rising opportunities */}
+      <Feed title="Rising opportunities" subtitle="Value up 25%+ with real minutes, ranked by GBM fit" href="/discover">
+        {risingRows.map((p) => <PlayerListRow key={p.player_id} player={p} />)}
+        {risingRows.length === 0 && <Empty text="No value-trend data yet." />}
       </Feed>
 
-      {/* ------------------------------ GBM layer -------------------------- */}
+      {/* 4 — new players entering GBM markets */}
+      <Feed title="New in GBM markets" subtitle="Latest target-market players to enter the platform" href="/discover">
+        {newMarketRows.map((p) => <PlayerListRow key={p.player_id} player={p} />)}
+        {newMarketRows.length === 0 && <Empty text="No target-market players yet — imports are landing." />}
+      </Feed>
+
+      {/* 5 — contract situations */}
+      <Feed title="Contract situations" subtitle="Inside 18 months, valued, ranked by GBM fit" href="/players?contract=18">
+        {contractRows.map((p) => <PlayerListRow key={p.player_id} player={p} />)}
+        {contractRows.length === 0 && <Empty text="No expiring contracts recorded." />}
+      </Feed>
+
+      {/* 6 — internal portfolio */}
       <Feed title="GBM portfolio" subtitle="Players represented by GBM Sports Group" href="/portfolio">
         {(portfolio ?? []).length > 0 ? (
           (portfolio ?? []).map((p) => (
@@ -235,65 +231,28 @@ export default async function DashboardPage() {
         )}
       </Feed>
 
-      {hasWork && (priorities ?? []).length > 0 && (
-        <Feed title="Priority targets" subtitle="High priority across all lists" href="/watchlists">
-          {(priorities ?? []).map((wp) => <WatchRow key={wp.id} entry={wp} />)}
-        </Feed>
-      )}
+      {/* 7 — market movements */}
+      <Feed title="Market movements" subtitle="The biggest 12-month swings, both directions" href="/radar">
+        {movementRows.map((p) => <PlayerListRow key={p.player_id} player={p} />)}
+        {movementRows.length === 0 && <Empty text="No movement data yet." />}
+      </Feed>
 
-      {(watched ?? []).length > 0 && (
-        <Feed title="Recently watched" subtitle="Latest additions to GBM lists" href="/watchlists">
-          {(watched ?? []).map((wp) => <WatchRow key={wp.id} entry={wp} />)}
-        </Feed>
-      )}
-
-      {hasActivity && (
-        <Feed title="Recent internal activity" subtitle="Reports and notes" href="/scouting">
-          {(recentReports ?? []).map((r) => {
-            const p = Array.isArray(r.players) ? r.players[0] : r.players;
-            return (
-              <Link key={`r-${r.id}`} href={`/players/${r.player_id}`} className="sheet-row">
-                <div className="flex items-center gap-3">
-                  <PlayerPhoto src={p?.image_url ?? null} name={p?.full_name ?? '—'} size={40} />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-[0.9375rem]">{p?.full_name}</span>
-                      <span className="badge badge-neutral">report</span>
-                      {r.is_draft && <span className="badge badge-neutral">draft</span>}
-                    </div>
-                    <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
-                      {formatDate(r.observed_on)} · {statusLabel(r.recommendation)}
-                    </p>
-                  </div>
-                  {r.overall_rating && (
-                    <span className="data shrink-0">
-                      <span className="text-lg font-semibold">{r.overall_rating}</span>
-                      <span className="text-xs" style={{ color: 'var(--muted)' }}>/10</span>
-                    </span>
-                  )}
-                </div>
-              </Link>
-            );
-          })}
-          {(recentNotes ?? []).map((n) => {
-            const p = Array.isArray(n.players) ? n.players[0] : n.players;
-            return (
-              <Link key={`n-${n.id}`} href={`/players/${n.player_id}`} className="sheet-row">
-                <div className="flex items-center gap-3">
-                  <PlayerPhoto src={p?.image_url ?? null} name={p?.full_name ?? '—'} size={40} />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-[0.9375rem]">{p?.full_name}</span>
-                      <span className="badge badge-neutral">note</span>
-                    </div>
-                    <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--muted)' }}>{n.body}</p>
-                  </div>
-                </div>
-              </Link>
-            );
-          })}
-        </Feed>
-      )}
+      {/* Representation research keeps its caveat wherever it appears. */}
+      <Feed title="Representation research" subtitle="Aged 15–23, source lists no agency" href="/representation">
+        <p
+          className="px-4 py-2 text-xs leading-relaxed"
+          style={{
+            background: 'color-mix(in srgb, var(--color-attention) 10%, transparent)',
+            color: 'var(--color-attention-2)',
+            borderBottom: '1px solid var(--border)',
+          }}
+        >
+          <strong>Unverified.</strong> “No agency listed” records what the source displayed. It is not
+          evidence a player is unrepresented — verify before any approach.
+        </p>
+        {((repOpps ?? []) as PlayerCardData[]).map((p) => <PlayerListRow key={p.player_id} player={p} />)}
+        {(repOpps ?? []).length === 0 && <Empty text="Nothing in the queue." />}
+      </Feed>
 
       <div className="h-8" />
     </AppShell>

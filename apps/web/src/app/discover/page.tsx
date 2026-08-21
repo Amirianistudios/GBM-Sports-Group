@@ -1,91 +1,186 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { AppShell } from '@/components/app-shell';
+import { PlayerCard, PlayerListRow, type PlayerCardData } from '@/components/player-card';
+import { cachedPlayerColumns, dobCutoff, fromCachedPlayer, monthsAhead, todayIso } from '@/lib/card-data';
+import { MARKET_REGIONS, ALL_TARGET_COUNTRIES, marketCountries } from '@/lib/markets';
 
 export const dynamic = 'force-dynamic';
 
-const SIGNAL_COPY: Record<string, { title: string; blurb: string }> = {
-  RAPID_VALUE_GROWTH: {
-    title: 'Rapid value growth',
-    blurb: 'Market value rising sharply over 12 months.',
-  },
-  UNREPRESENTED_HIGH_POTENTIAL: {
-    title: 'No agency listed, high potential',
-    blurb: 'Young, well-valued, and the source shows no agency. Requires verification.',
-  },
-  CONTRACT_EXPIRING: {
-    title: 'Contract ending',
-    blurb: 'Inside the final 18 months.',
-  },
-};
-
-export default async function DiscoverPage() {
+/**
+ * DISCOVER — who should GBM look at.
+ *
+ * Not "who is most expensive": every section is ordered by the GBM
+ * opportunity model (age, target markets, realistic values, minutes,
+ * contract windows — the score's factors are written into each player's
+ * profile). The market chips narrow everything to one region of the
+ * agency's primary markets. All queries run on indexed cached columns,
+ * so this page stays fast at any population size.
+ */
+export default async function DiscoverPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ market?: string }>;
+}) {
+  const { market } = await searchParams;
+  const regionCountries = marketCountries(market);
   const supabase = await createClient();
 
-  const { data: signals } = await supabase
-    .from('discovery_signals')
-    .select('id, signal_type, score, rationale, player_id, players(full_name, primary_position, date_of_birth)')
-    .eq('is_current', true)
-    .order('score', { ascending: false })
-    .limit(60);
-
-  const grouped = new Map<string, typeof signals>();
-  for (const s of signals ?? []) {
-    const list = grouped.get(s.signal_type) ?? [];
-    list.push(s);
-    grouped.set(s.signal_type, list as typeof signals);
+  function base(filterMarkets: boolean) {
+    const countries = regionCountries ?? (filterMarkets ? ALL_TARGET_COUNTRIES : null);
+    let q = supabase
+      .from('players')
+      .select(cachedPlayerColumns(countries !== null))
+      .order('cached_opportunity', { ascending: false, nullsFirst: false });
+    if (countries) q = q.in('nationality.name', countries);
+    return q;
   }
+
+  const [top, emerging, contractWindow, newest] = await Promise.all([
+    base(false).limit(12),
+    base(false)
+      .gte('date_of_birth', dobCutoff(24))
+      .or('cached_market_value.lte.5000000,cached_market_value.is.null')
+      .limit(12),
+    base(false)
+      .gte('cached_contract_expires', todayIso())
+      .lte('cached_contract_expires', monthsAhead(18))
+      .gte('date_of_birth', dobCutoff(30))
+      .limit(8),
+    supabase
+      .from('players')
+      .select(cachedPlayerColumns(true))
+      .in('nationality.name', regionCountries ?? ALL_TARGET_COUNTRIES)
+      .order('created_at', { ascending: false })
+      .limit(8),
+  ]);
+
+  const cards = (rows: typeof top): PlayerCardData[] =>
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ((rows.data ?? []) as any[]).map(fromCachedPlayer);
+
+  const topCards = cards(top);
+  const emergingCards = cards(emerging);
+  const contractRows = cards(contractWindow);
+  const newestRows = cards(newest);
 
   return (
     <AppShell eyebrow="Intelligence" title="Discover">
-      <p className="px-4 md:px-6 pt-3 text-xs leading-relaxed" style={{ color: 'var(--muted)' }}>
-        Signals are computed from the data GBM holds, and each one states its reasoning. A signal you
-        cannot explain is a signal you cannot act on.
+      <p className="px-4 md:px-6 pt-2 text-xs leading-relaxed max-w-2xl" style={{ color: 'var(--muted)' }}>
+        Ranked by the GBM opportunity model — age, target markets, realistic values, minutes and
+        contract windows. Every score explains itself on the player&#8217;s profile.
       </p>
 
-      {grouped.size === 0 && (
-        <div className="surface mx-4 md:mx-6 mt-4 px-4 py-12 text-center">
-          <p className="font-semibold text-sm">No signals yet</p>
-          <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
-            Run the discovery signal job to populate this page.
-          </p>
-        </div>
-      )}
+      {/* Market chips — one region of the agency's primary markets. */}
+      <div className="px-4 md:px-6 mt-3 flex gap-1.5 flex-wrap">
+        <MarketChip href="/discover" label="All markets" active={!regionCountries} />
+        {Object.entries(MARKET_REGIONS).map(([key, r]) => (
+          <MarketChip
+            key={key}
+            href={`/discover?market=${key}`}
+            label={r.label}
+            active={market === key}
+          />
+        ))}
+      </div>
 
-      {[...grouped.entries()].map(([type, list]) => {
-        const copy = SIGNAL_COPY[type] ?? { title: type.replaceAll('_', ' '), blurb: '' };
-        return (
-          <section key={type} className="mt-5">
-            <div className="px-4 md:px-6 mb-1.5">
-              <h2 className="text-sm font-semibold tracking-tight">{copy.title}</h2>
-              {copy.blurb && (
-                <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>{copy.blurb}</p>
-              )}
-            </div>
-            <div className="surface mx-4 md:mx-6 overflow-hidden">
-              {(list ?? []).slice(0, 8).map((s) => {
-                const p = Array.isArray(s.players) ? s.players[0] : s.players;
-                return (
-                  <Link key={s.id} href={`/players/${s.player_id}`} className="sheet-row">
-                    <div className="flex items-start gap-3">
-                      <div className="min-w-0 flex-1">
-                        <p className="font-semibold text-[0.9375rem]">{p?.full_name ?? 'Unknown'}</p>
-                        <p className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--muted)' }}>
-                          {s.rationale}
-                        </p>
-                      </div>
-                      <span className="data text-sm font-semibold shrink-0" style={{ color: 'var(--color-verified-2)' }}>
-                        {Number(s.score).toFixed(0)}
-                      </span>
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-          </section>
-        );
-      })}
+      <Block
+        title="Top opportunities"
+        subtitle="Highest GBM fit right now"
+      >
+        {topCards.length === 0 ? (
+          <EmptyNote />
+        ) : (
+          <div className="player-grid px-4 md:px-6">
+            {topCards.map((p, i) => (
+              <PlayerCard key={p.player_id} player={p} priority={i < 4} />
+            ))}
+          </div>
+        )}
+      </Block>
+
+      <Block
+        title="Emerging talent"
+        subtitle="Under 24, valued €5m or less — the acquisition profile"
+      >
+        {emergingCards.length === 0 ? (
+          <EmptyNote />
+        ) : (
+          <div className="player-grid px-4 md:px-6">
+            {emergingCards.map((p) => (
+              <PlayerCard key={p.player_id} player={p} />
+            ))}
+          </div>
+        )}
+      </Block>
+
+      <Block title="Contract window closing" subtitle="Under 30, inside the final 18 months">
+        <div className="surface mx-4 md:mx-6 overflow-hidden">
+          {contractRows.length === 0 ? (
+            <EmptyNote inset />
+          ) : (
+            contractRows.map((p) => <PlayerListRow key={p.player_id} player={p} />)
+          )}
+        </div>
+      </Block>
+
+      <Block title="New in GBM markets" subtitle="Most recently added target-market players">
+        <div className="surface mx-4 md:mx-6 overflow-hidden">
+          {newestRows.length === 0 ? (
+            <EmptyNote inset />
+          ) : (
+            newestRows.map((p) => <PlayerListRow key={p.player_id} player={p} />)
+          )}
+        </div>
+      </Block>
+
+      <div className="px-4 md:px-6 mt-5">
+        <Link
+          href="/players"
+          className="block surface px-4 py-3 text-sm font-semibold text-center"
+          style={{ color: 'var(--color-verified-2)' }}
+        >
+          Open the full database with filters →
+        </Link>
+      </div>
+
       <div className="h-8" />
     </AppShell>
+  );
+}
+
+function MarketChip({ href, label, active }: { href: string; label: string; active: boolean }) {
+  return (
+    <Link
+      href={href}
+      className="px-3 py-1.5 rounded-full text-xs font-semibold"
+      style={
+        active
+          ? { background: 'var(--fg)', color: 'var(--bg)', border: '1px solid var(--fg)' }
+          : { background: 'var(--surface)', color: 'var(--muted)', border: '1px solid var(--border)' }
+      }
+    >
+      {label}
+    </Link>
+  );
+}
+
+function Block({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
+  return (
+    <section className="mt-6">
+      <div className="px-4 md:px-6 mb-2">
+        <h2 className="text-[0.9375rem] font-semibold tracking-tight">{title}</h2>
+        <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>{subtitle}</p>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function EmptyNote({ inset = false }: { inset?: boolean }) {
+  return (
+    <p className={`text-sm ${inset ? 'px-4 py-6' : 'px-4 md:px-6 py-6'}`} style={{ color: 'var(--muted)' }}>
+      Nothing in this market yet — the population grows as target-market imports land.
+    </p>
   );
 }

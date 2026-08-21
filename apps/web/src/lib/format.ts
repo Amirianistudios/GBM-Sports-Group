@@ -168,6 +168,8 @@ export function leagueLabel(slug: string | null | undefined): string | null {
 
 /** Discovery-signal vocabulary, humanized. Unknown types fall back legibly. */
 const SIGNAL_LABELS: Record<string, string> = {
+  GBM_OPPORTUNITY: 'GBM opportunity',
+  UNREPRESENTED_HIGH_POTENTIAL: 'Unrepresented, high potential',
   RAPID_VALUE_GROWTH: 'Rapid value growth',
   CONTRACT_EXPIRING: 'Contract expiring',
   BREAKOUT_MINUTES: 'Breakout minutes',

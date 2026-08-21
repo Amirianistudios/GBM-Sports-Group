@@ -37,6 +37,8 @@ export interface PlayerCardData {
   gbm_status?: string | null;
   representation_status?: string | null;
   season_name?: string | null;
+  /** GBM opportunity model score (0–100) — the agency's own number. */
+  gbm_opportunity?: number | null;
 }
 
 function GbmBadge({ status }: { status: string | null }) {
@@ -79,11 +81,18 @@ export function PlayerCard({ player, priority = false }: { player: PlayerCardDat
         <span className="data text-[0.9375rem] font-semibold">
           {formatCurrency(player.market_value)}
         </span>
-        {t && (
-          <span className={`data text-xs font-semibold ${t.className}`}>
-            <span aria-hidden="true">{t.glyph}</span> {t.text}
-          </span>
-        )}
+        <span className="flex items-baseline gap-2">
+          {t && (
+            <span className={`data text-xs font-semibold ${t.className}`}>
+              <span aria-hidden="true">{t.glyph}</span> {t.text}
+            </span>
+          )}
+          {player.gbm_opportunity != null && (
+            <span className="opportunity text-xs" title="GBM opportunity score">
+              fit {Math.round(Number(player.gbm_opportunity))}
+            </span>
+          )}
+        </span>
       </div>
 
       {(signal || runway?.urgent || (player.gbm_status && player.gbm_status !== 'NONE')) && (
@@ -132,7 +141,9 @@ export function PlayerListRow({ player }: { player: PlayerCardData }) {
             {hasSeason && (
               <span className="data hidden sm:inline">
                 {player.league_name ? `${leagueLabel(player.league_name)} · ` : ''}
-                {player.season_apps ?? 0} apps · {formatMinutes(player.season_minutes)} · {player.season_goals ?? 0}G {player.season_assists ?? 0}A
+                {player.season_apps != null ? `${player.season_apps} apps · ` : ''}
+                {formatMinutes(player.season_minutes)}
+                {player.season_goals != null ? ` · ${player.season_goals}G ${player.season_assists ?? 0}A` : ''}
               </span>
             )}
             {signal && <span className="badge badge-neutral hidden md:inline-flex">{signal}</span>}
@@ -148,6 +159,11 @@ export function PlayerListRow({ player }: { player: PlayerCardData }) {
             )}
             {runway?.urgent && (
               <span className="data" style={{ color: 'var(--color-attention-2)' }}>{runway.text}</span>
+            )}
+            {player.gbm_opportunity != null && (
+              <span className="opportunity" title="GBM opportunity score">
+                fit {Math.round(Number(player.gbm_opportunity))}
+              </span>
             )}
           </p>
         </div>

@@ -49,7 +49,7 @@ export function AddNote({ playerId }: { playerId: string }) {
         type="submit"
         disabled={busy || body.trim() === ''}
         className="px-3 py-2 rounded-[3px] text-sm font-semibold disabled:opacity-50 shrink-0"
-        style={{ background: 'var(--color-verified)', color: '#fff' }}
+        style={{ background: 'var(--color-verified)', color: '#06201C' }}
       >
         {busy ? 'Saving…' : 'Save'}
       </button>

@@ -12,8 +12,10 @@ import { PlayerPhoto } from '@/components/player-photo';
 import { Tabs } from '@/components/tabs';
 import { countryFlag } from '@/lib/flags';
 import {
-  formatAge, formatCurrency, formatDate, footLabel, monthsUntil, positionCode, statusLabel, trend,
+  formatAge, formatCurrency, formatDate, footLabel, leagueLabel, monthsUntil,
+  signalLabel, statusLabel, trend,
 } from '@/lib/format';
+import { buildIntelligenceSummary } from '@/lib/summary';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,6 +24,14 @@ export const dynamic = 'force-dynamic';
  * the component body — the page is force-dynamic, so it re-evaluates per
  * request, and React's purity rule rightly refuses Date.now() in render.
  */
+/** Age in years from an ISO date of birth; null when absent or unparseable. */
+function ageYears(dob: string | null | undefined): number | null {
+  if (!dob) return null;
+  const t = Date.parse(dob);
+  if (Number.isNaN(t)) return null;
+  return (Date.now() - t) / 31_557_600_000;
+}
+
 function valueOneYearAgo(
   marketValues: Array<{ valued_on: string; value_amount: number | string }>,
 ): number | null {
@@ -167,16 +177,65 @@ export default async function PlayerProfile({ params }: { params: Promise<{ id: 
 
   const isRepresentedByGbm = player.gbm_status && !['NONE', 'UNTRACKED'].includes(player.gbm_status);
 
+  // Current-season aggregates from the already-fetched season rows: the
+  // newest season name, its total minutes/apps, and the competition where
+  // most of those minutes were played.
+  const currentSeasonName = statRows[0]?.season_name ?? null;
+  const currentSeasonRows = statRows.filter((r) => r.season_name === currentSeasonName);
+  const seasonMinutes = currentSeasonRows.length
+    ? currentSeasonRows.reduce((n, r) => n + (r.minutes_played ?? 0), 0)
+    : null;
+  const seasonApps = currentSeasonRows.length
+    ? currentSeasonRows.reduce((n, r) => n + (r.matches_played ?? 0), 0)
+    : null;
+  const topLeagueRaw = currentSeasonRows[0]?.competition_name ?? null;
+
+  // The opportunity signal carries the score and, in its evidence, which
+  // target-market factors contributed — the summary reuses exactly those.
+  const opportunity = (signals ?? []).find((s) => s.signal_type === 'GBM_OPPORTUNITY');
+  const oppEvidence = (opportunity?.evidence ?? {}) as Record<string, unknown>;
+  const summary = buildIntelligenceSummary({
+    age: ageYears(player.date_of_birth),
+    nationality: nationality?.name ?? null,
+    position: player.primary_position,
+    clubName: club?.name ?? null,
+    leagueName: topLeagueRaw ? (leagueLabel(topLeagueRaw) ?? topLeagueRaw) : null,
+    seasonMinutes,
+    seasonApps,
+    marketValue: latestValue,
+    valueChangePct:
+      latestValue !== null && yearAgoValue !== null && yearAgoValue > 0
+        ? ((latestValue - yearAgoValue) / yearAgoValue) * 100
+        : null,
+    contractMonths,
+    citizenshipIsTarget: Number(oppEvidence.citizenship_pts ?? 0) > 0,
+    leagueIsTarget: Number(oppEvidence.league_pts ?? 0) > 0,
+    noAgencyListed: representation?.status === 'NO_AGENCY_LISTED',
+  });
+
   /* ------------------------------ TAB PANELS ---------------------------- */
 
   const overviewPanel = (
     <>
+      <Section title="Reference">
+        <dl className="grid grid-cols-3 sm:grid-cols-6 gap-x-3 gap-y-3 p-4">
+          <Fact label="Born" value={formatDate(player.date_of_birth)} sources={factSources('player.date_of_birth')} conflict={conflictKeys.has('player.date_of_birth')} />
+          <Fact label="Height" value={player.height_cm ? `${player.height_cm} cm` : '—'} sources={factSources('player.height_cm')} conflict={conflictKeys.has('player.height_cm')} />
+          <Fact label="Foot" value={footLabel(player.foot)} sources={0} />
+          <Fact label="Position" value={player.primary_position ?? '—'} sources={factSources('player.primary_position')} conflict={conflictKeys.has('player.primary_position')} />
+          <Fact label="Birthplace" value={player.birth_place ?? '—'} sources={0} />
+          <Fact label="Sources" value={String(providerCount)} sources={0} />
+        </dl>
+      </Section>
+
       {(signals ?? []).length > 0 && (
         <Section title="Discovery signals">
           {(signals ?? []).map((s) => (
             <div key={s.id} className="px-4 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
               <div className="flex items-center gap-2">
-                <span className="badge badge-neutral">{statusLabel(s.signal_type)}</span>
+                <span className={`badge ${s.signal_type === 'GBM_OPPORTUNITY' ? 'badge-gbm' : 'badge-neutral'}`}>
+                  {signalLabel(s.signal_type)}
+                </span>
                 <span className="data text-xs" style={{ color: 'var(--muted)' }}>score {Number(s.score).toFixed(1)}</span>
               </div>
               <p className="text-sm mt-1.5 leading-relaxed">{s.rationale}</p>
@@ -472,36 +531,54 @@ export default async function PlayerProfile({ params }: { params: Promise<{ id: 
   return (
     <AppShell eyebrow="Player" title={player.full_name}>
       {/* ---------------------------------------------------------------- */}
-      {/* HEADER — identity first                                           */}
+      {/* HERO — player identity first: photograph, name, why interesting.  */}
+      {/* Reference facts live in the Overview tab; this surface answers    */}
+      {/* "who is this player and why are we looking at them".              */}
       {/* ---------------------------------------------------------------- */}
       <section className="px-4 md:px-6 pt-3">
-        <div className="card p-4 md:p-5">
-          <div className="flex items-start gap-4">
-            <PlayerPhoto src={player.image_url} name={player.full_name} size={96} priority />
+        <div className="hero-surface p-4 md:p-6">
+          <div className="flex items-start gap-4 md:gap-6">
+            <div className="hidden md:block">
+              <PlayerPhoto src={player.image_url} name={player.full_name} size={148} priority />
+            </div>
+            <div className="md:hidden">
+              <PlayerPhoto src={player.image_url} name={player.full_name} size={96} priority />
+            </div>
+
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-2xl md:text-3xl font-bold tracking-tight leading-tight">{player.full_name}</h2>
+              <p className="eyebrow">
+                {player.primary_position ?? 'Position unknown'} · {club?.name ?? 'Club unknown'}
+              </p>
+              <div className="flex items-center gap-2.5 flex-wrap mt-1">
+                <h2 className="text-3xl md:text-4xl font-bold tracking-tight leading-none">
+                  {player.full_name}
+                </h2>
                 {isRepresentedByGbm && (
                   <span className="badge badge-gbm">GBM · {statusLabel(player.gbm_status)}</span>
                 )}
               </div>
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-2 text-sm" style={{ color: 'var(--muted)' }}>
-                <span className="pos-chip">
-                  {positionCode(player.primary_position)}
-                  <span aria-hidden="true">·</span>
-                  <span className="data">{formatAge(player.date_of_birth)}y</span>
-                </span>
-                <span className="font-medium" style={{ color: 'var(--fg)' }}>{club?.name ?? 'Club unknown'}</span>
+
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-2.5 text-sm" style={{ color: 'var(--muted)' }}>
                 {nationality?.name && (
                   <>
-                    <span aria-hidden="true">·</span>
                     {flag && <span className="flag" aria-hidden="true">{flag}</span>}
                     <span>{nationality.name}</span>
+                    <span aria-hidden="true">·</span>
                   </>
                 )}
+                <span className="data">{formatAge(player.date_of_birth)}y</span>
+                {player.height_cm && (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <span className="data">{player.height_cm} cm</span>
+                  </>
+                )}
+                <span aria-hidden="true">·</span>
+                <span>{footLabel(player.foot)}</span>
               </div>
-              <div className="hidden md:flex items-baseline gap-3 mt-3">
-                <span className="data text-xl font-bold">{formatCurrency(latestValue)}</span>
+
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1.5 mt-3.5">
+                <span className="data text-2xl md:text-3xl font-bold">{formatCurrency(latestValue)}</span>
                 {valueTrend && (
                   <span className={`data text-sm font-semibold ${valueTrend.className}`}>
                     <span aria-hidden="true">{valueTrend.glyph}</span> {valueTrend.text} · 12 mo
@@ -512,37 +589,49 @@ export default async function PlayerProfile({ params }: { params: Promise<{ id: 
                     contract {contractMonths} mo
                   </span>
                 )}
+                {opportunity && (
+                  <span
+                    className="opportunity text-sm"
+                    title="GBM opportunity model — factors in the Overview tab"
+                  >
+                    {Math.round(Number(opportunity.score))}
+                    <span style={{ opacity: 0.65 }}>/100 GBM fit</span>
+                  </span>
+                )}
               </div>
+
+              {summary && (
+                <p className="mt-3.5 text-sm leading-relaxed max-w-2xl" style={{ color: 'var(--fg)' }}>
+                  <span className="eyebrow block mb-1" style={{ color: 'var(--color-gbm)' }}>
+                    GBM Intelligence Summary
+                  </span>
+                  {summary}
+                </p>
+              )}
             </div>
-            <div className="flex flex-col items-end gap-2 shrink-0">
+
+            <div className="hidden sm:flex flex-col items-end gap-2 shrink-0">
               <WatchlistButton playerId={id} />
               <Link
                 href={`/compare?ids=${id}`}
                 className="px-3 py-2 rounded-[4px] text-sm font-semibold"
-                style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}
+                style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
               >
                 Compare
               </Link>
             </div>
           </div>
 
-          <div className="md:hidden flex items-baseline gap-3 mt-3">
-            <span className="data text-lg font-bold">{formatCurrency(latestValue)}</span>
-            {valueTrend && (
-              <span className={`data text-xs font-semibold ${valueTrend.className}`}>
-                <span aria-hidden="true">{valueTrend.glyph}</span> {valueTrend.text}
-              </span>
-            )}
+          <div className="sm:hidden flex gap-2 mt-3">
+            <WatchlistButton playerId={id} />
+            <Link
+              href={`/compare?ids=${id}`}
+              className="px-3 py-2 rounded-[4px] text-sm font-semibold"
+              style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+            >
+              Compare
+            </Link>
           </div>
-
-          <dl className="grid grid-cols-3 sm:grid-cols-6 gap-x-3 gap-y-3 mt-4 pt-4" style={{ borderTop: '1px solid var(--border)' }}>
-            <Fact label="Born" value={formatDate(player.date_of_birth)} sources={factSources('player.date_of_birth')} conflict={conflictKeys.has('player.date_of_birth')} />
-            <Fact label="Height" value={player.height_cm ? `${player.height_cm} cm` : '—'} sources={factSources('player.height_cm')} conflict={conflictKeys.has('player.height_cm')} />
-            <Fact label="Foot" value={footLabel(player.foot)} sources={0} />
-            <Fact label="Position" value={player.primary_position ?? '—'} sources={factSources('player.primary_position')} conflict={conflictKeys.has('player.primary_position')} />
-            <Fact label="Birthplace" value={player.birth_place ?? '—'} sources={0} />
-            <Fact label="Sources" value={String(providerCount)} sources={0} />
-          </dl>
         </div>
       </section>
 

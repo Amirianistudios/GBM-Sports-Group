@@ -130,7 +130,7 @@ export function PlayerLinks({ playerId, links }: { playerId: string; links: Play
             type="submit"
             disabled={busy}
             className="px-3 py-2 rounded-[3px] text-sm font-semibold disabled:opacity-50"
-            style={{ background: 'var(--color-verified)', color: '#fff' }}
+            style={{ background: 'var(--color-verified)', color: '#06201C' }}
           >
             {busy ? 'Saving…' : 'Add'}
           </button>
