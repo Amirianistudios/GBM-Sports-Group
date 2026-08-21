@@ -147,7 +147,7 @@ export function ReportForm({ playerId }: { playerId: string }) {
           type="submit"
           disabled={busy}
           className="ml-auto px-4 py-2.5 rounded-[3px] text-sm font-semibold disabled:opacity-50"
-          style={{ background: 'var(--color-verified)', color: '#fff' }}
+          style={{ background: 'var(--color-verified)', color: '#06201C' }}
         >
           {busy ? 'Saving…' : 'Save report'}
         </button>

@@ -7,7 +7,7 @@ export const NAV_GROUPS: Array<{ heading: string; items: Array<{ href: string; l
   {
     heading: 'Intelligence',
     items: [
-      { href: '/', label: 'Dashboard' },
+      { href: '/', label: 'Morning Brief' },
       { href: '/discover', label: 'Discover' },
       { href: '/radar', label: 'Market Radar' },
       { href: '/trends', label: 'Trends' },

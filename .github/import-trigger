@@ -1,4 +1,4 @@
 # Editing this file on main runs .github/workflows/data-import-trigger.yml.
 # Keep the date current so each request is a distinct change.
 max-players: 6000
-requested: 2026-08-21 Sprint 1.5 — GBM priority selection re-slice
+requested: 2026-08-21T19:30Z Sprint 1.5 — re-run for green end-to-end after 0017 (signals+caches over RPC)

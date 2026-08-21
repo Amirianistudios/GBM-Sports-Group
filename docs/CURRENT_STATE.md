@@ -347,6 +347,55 @@ was found by executing the thing rather than reading it.
   Transfermarkt external id would have aborted the run on a unique violation
   partway through. It now adopts such entities by natural key.
 
+## Sprint 1.5 — product identity and data relevance (2026-08-21)
+
+**The selection bug.** The first staged import ordered by `last_season` desc
+and sliced 2,000. Nearly every active player ties on the current season, and
+JavaScript's stable sort then fell back to dataset order — Transfermarkt
+profile ids, which track career start dates. The result was a veterans
+archive: median age 34.5, twenty-five players aged 16–23, none of them under
+€5m. `services/ingestion/src/transfermarkt/select.ts` replaced that slice
+with GBM's acquisition profile (age curve, target-market leagues and
+citizenships, realistic value band, contract window, senior caps) under a
+deterministic total order, with 11 regression tests.
+
+**The re-slice import** (`data-import-trigger` run 1 + migrations 0016/0017):
+7,835 players, median age 24; 3,605 aged 16–23, of which 2,444 at ≤€5m;
+6,343 target-market nationals (81%); 114,450 valuations; 6,020 contracts.
+Signals model v2: GBM_OPPORTUNITY (0–100 composite, factors written into
+each rationale) for every player, 2,950 contract-expiring, 1,374 rapid
+growers, 468 unrepresented-high-potential.
+
+**Data architecture.** `gbm_target_markets` holds the agency's 40 primary
+markets as reference data. `players` gained derived cached list columns
+(value, 12-month change, season minutes, league, contract expiry,
+opportunity score) refreshed by `gbm_refresh_player_caches()` after every
+import and signal recompute — list sorts dropped from ~1.2s of lateral-view
+evaluation to 0.1ms indexed scans, which is what makes the larger population
+navigable. Note: the refresh's whole-table UPDATE needs its always-true
+WHERE clause — Supabase's PostgREST path loads pg_safeupdate (0017).
+
+**Product identity.** The interface now ships dark: graphite ground, chalk
+type, the white-on-black GBM mark at home, teal/ochre/brick provenance
+colours kept, and one brass accent reserved for GBM's own layer (portfolio,
+interest, opportunity). The dashboard became the GBM Morning Brief; Discover
+became the answer to "who should GBM look at" (opportunity-ranked, market
+chips per region); player profiles open with an identity hero — large
+portrait, headline facts, and a deterministic GBM Intelligence Summary
+assembled only from stored fields (`apps/web/src/lib/summary.ts`, 10 tests
+pin its honesty). `/players` defaults to GBM-fit order on the cached fast
+path; per-90 and representation filters still use the discovery view.
+
+**Imports by file push.** The GitHub App cannot call `workflow_dispatch`, so
+`.github/workflows/data-import-trigger.yml` runs the staged pipeline when
+`.github/import-trigger` changes on `main` (shared concurrency group with
+the weekly refresh, whose cap rose to 6,000).
+
+**Imagery.** [`PLAYER_IMAGES.md`](PLAYER_IMAGES.md) records the legal
+position: dataset-provided portraits hotlinked via next/image with monogram
+fallback; no club badges (the dataset ships none, and guessing asset URLs is
+scraping); Wikidata/Commons is the Sprint 2 route.
+
 ## Provider research
 
 Nine external sources were assessed on 2026-08-19 — see
@@ -376,9 +425,9 @@ Two findings change the roadmap:
    fixes the failing Vercel production build, deploys the scouting UI, and
    activates the weekly schedule — capped at the staged 2,000 scope).
    ~~Delete `staged-import-once.yml` and its trigger file~~ — done.
-4. Scale in steps (10,000 → full ~22k active) by dispatching
-   `data-refresh.yml` with a higher cap (empty = full dataset), or by raising
-   the scheduled cap in the workflow — a deliberate act, not the unattended
-   default.
+4. ~~Scale in steps~~ — superseded 2026-08-21: population re-sliced to
+   6,000 under GBM priority selection (7,835 total with the original set);
+   further scaling happens by editing `.github/import-trigger` with a higher
+   cap, a deliberate act.
 5. Decide API-Football Pro ($19/mo) for current-season statistics and injury
    histories; request the Wyscout quote for advanced metrics.

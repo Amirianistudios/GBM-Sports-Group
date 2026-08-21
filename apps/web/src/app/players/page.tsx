@@ -4,6 +4,7 @@ import { PlayerCard, PlayerListRow, type PlayerCardData } from '@/components/pla
 import { PlayerFilters } from '@/components/player-filters';
 import { Pagination } from '@/components/pagination';
 import { ViewToggle } from '@/components/view-toggle';
+import { cachedPlayerColumns, dobCutoff, fromCachedPlayer, monthsAhead, todayIso } from '@/lib/card-data';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,43 +30,84 @@ export default async function PlayersPage({ searchParams }: { searchParams: Sear
   const sp = await searchParams;
   const supabase = await createClient();
 
-  let query = supabase.from('v_player_discovery').select('*');
+  const sort = sp.sort ?? 'fit';
 
-  if (sp.q) query = query.ilike('full_name', `%${sp.q}%`);
-  if (sp.position) query = query.eq('primary_position', sp.position);
-  if (sp.nationality) query = query.eq('nationality', sp.nationality);
-  if (sp.league) query = query.eq('league_name', sp.league);
-  // Validate against the enum rather than trusting the query string.
-  if (sp.foot && FOOT_VALUES.includes(sp.foot as Foot)) {
-    query = query.eq('foot', sp.foot as Foot);
+  // Two query paths. The fast path sorts and filters on the indexed cached
+  // columns of `players` (milliseconds at any population size). Filters and
+  // sorts that need representation state or per-90 statistics fall back to
+  // the discovery view — rarer, and still inside the timeout since 0014.
+  const needsView =
+    Boolean(sp.agency || sp.minApps || sp.minGoals || sp.minAssists || sp.minG90 || sp.minA90) ||
+    ['signal', 'goals', 'g90', 'a90'].includes(sort);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let query: any;
+
+  if (needsView) {
+    query = supabase.from('v_player_discovery').select('*');
+
+    if (sp.q) query = query.ilike('full_name', `%${sp.q}%`);
+    if (sp.position) query = query.eq('primary_position', sp.position);
+    if (sp.nationality) query = query.eq('nationality', sp.nationality);
+    if (sp.league) query = query.eq('league_name', sp.league);
+    if (sp.foot && FOOT_VALUES.includes(sp.foot as Foot)) query = query.eq('foot', sp.foot as Foot);
+    if (sp.agency === 'none') query = query.eq('representation_status', 'NO_AGENCY_LISTED');
+    if (sp.agency === 'known') query = query.eq('representation_status', 'KNOWN_AGENCY');
+    if (sp.ageMin) query = query.gte('age', Number(sp.ageMin));
+    if (sp.ageMax) query = query.lte('age', Number(sp.ageMax));
+    if (sp.minHeight) query = query.gte('height_cm', Number(sp.minHeight));
+    if (sp.maxValue) query = query.lte('market_value', Number(sp.maxValue) * 1_000_000);
+    if (sp.contract) query = query.lte('contract_months_remaining', Number(sp.contract));
+    if (sp.minMinutes) query = query.gte('season_minutes', Number(sp.minMinutes));
+    if (sp.minApps) query = query.gte('season_apps', Number(sp.minApps));
+    if (sp.minGoals) query = query.gte('season_goals', Number(sp.minGoals));
+    if (sp.minAssists) query = query.gte('season_assists', Number(sp.minAssists));
+    if (sp.minG90) query = query.gte('goals_per90', Number(sp.minG90));
+    if (sp.minA90) query = query.gte('assists_per90', Number(sp.minA90));
+
+    if (sort === 'value') query = query.order('market_value', { ascending: false, nullsFirst: false });
+    else if (sort === 'lowvalue') query = query.order('market_value', { ascending: true, nullsFirst: false });
+    else if (sort === 'growth') query = query.order('value_change_12m_pct', { ascending: false, nullsFirst: false });
+    else if (sort === 'fit') query = query.order('gbm_opportunity', { ascending: false, nullsFirst: false });
+    else if (sort === 'signal') query = query.order('top_signal_score', { ascending: false, nullsFirst: false });
+    else if (sort === 'minutes') query = query.order('season_minutes', { ascending: false, nullsFirst: false });
+    else if (sort === 'goals') query = query.order('season_goals', { ascending: false, nullsFirst: false });
+    else if (sort === 'g90') query = query.order('goals_per90', { ascending: false, nullsFirst: false });
+    else if (sort === 'a90') query = query.order('assists_per90', { ascending: false, nullsFirst: false });
+    else if (sort === 'age') query = query.order('age', { ascending: true, nullsFirst: false });
+    else if (sort === 'contract') query = query.order('contract_months_remaining', { ascending: true, nullsFirst: false });
+    else if (sort === 'recent') query = query.order('added_at', { ascending: false });
+    else query = query.order('full_name', { ascending: true });
+  } else {
+    query = supabase.from('players').select(cachedPlayerColumns(Boolean(sp.nationality)));
+
+    if (sp.q) query = query.ilike('full_name', `%${sp.q}%`);
+    if (sp.position) query = query.eq('primary_position', sp.position);
+    if (sp.nationality) query = query.eq('nationality.name', sp.nationality);
+    if (sp.league) query = query.eq('cached_league', sp.league);
+    if (sp.foot && FOOT_VALUES.includes(sp.foot as Foot)) query = query.eq('foot', sp.foot as Foot);
+    // age N or older = born on/before the cutoff N years back.
+    if (sp.ageMin) query = query.lte('date_of_birth', dobCutoff(Number(sp.ageMin)));
+    if (sp.ageMax) query = query.gte('date_of_birth', dobCutoff(Number(sp.ageMax) + 1));
+    if (sp.minHeight) query = query.gte('height_cm', Number(sp.minHeight));
+    if (sp.maxValue) query = query.lte('cached_market_value', Number(sp.maxValue) * 1_000_000);
+    if (sp.contract) {
+      query = query
+        .gte('cached_contract_expires', todayIso())
+        .lte('cached_contract_expires', monthsAhead(Number(sp.contract)));
+    }
+    if (sp.minMinutes) query = query.gte('cached_season_minutes', Number(sp.minMinutes));
+
+    if (sort === 'value') query = query.order('cached_market_value', { ascending: false, nullsFirst: false });
+    else if (sort === 'lowvalue') query = query.order('cached_market_value', { ascending: true, nullsFirst: false });
+    else if (sort === 'growth') query = query.order('cached_value_change_pct', { ascending: false, nullsFirst: false });
+    else if (sort === 'fit') query = query.order('cached_opportunity', { ascending: false, nullsFirst: false });
+    else if (sort === 'minutes') query = query.order('cached_season_minutes', { ascending: false, nullsFirst: false });
+    else if (sort === 'age') query = query.order('date_of_birth', { ascending: false, nullsFirst: false });
+    else if (sort === 'contract') query = query.order('cached_contract_expires', { ascending: true, nullsFirst: false });
+    else if (sort === 'recent') query = query.order('created_at', { ascending: false });
+    else query = query.order('full_name', { ascending: true });
   }
-  if (sp.agency === 'none') query = query.eq('representation_status', 'NO_AGENCY_LISTED');
-  if (sp.agency === 'known') query = query.eq('representation_status', 'KNOWN_AGENCY');
-  if (sp.ageMin) query = query.gte('age', Number(sp.ageMin));
-  if (sp.ageMax) query = query.lte('age', Number(sp.ageMax));
-  if (sp.minHeight) query = query.gte('height_cm', Number(sp.minHeight));
-  if (sp.maxValue) query = query.lte('market_value', Number(sp.maxValue) * 1_000_000);
-  if (sp.contract) query = query.lte('contract_months_remaining', Number(sp.contract));
-  if (sp.minMinutes) query = query.gte('season_minutes', Number(sp.minMinutes));
-  if (sp.minApps) query = query.gte('season_apps', Number(sp.minApps));
-  if (sp.minGoals) query = query.gte('season_goals', Number(sp.minGoals));
-  if (sp.minAssists) query = query.gte('season_assists', Number(sp.minAssists));
-  if (sp.minG90) query = query.gte('goals_per90', Number(sp.minG90));
-  if (sp.minA90) query = query.gte('assists_per90', Number(sp.minA90));
-
-  const sort = sp.sort ?? 'value';
-  if (sort === 'value') query = query.order('market_value', { ascending: false, nullsFirst: false });
-  else if (sort === 'lowvalue') query = query.order('market_value', { ascending: true, nullsFirst: false });
-  else if (sort === 'growth') query = query.order('value_change_12m_pct', { ascending: false, nullsFirst: false });
-  else if (sort === 'signal') query = query.order('top_signal_score', { ascending: false, nullsFirst: false });
-  else if (sort === 'minutes') query = query.order('season_minutes', { ascending: false, nullsFirst: false });
-  else if (sort === 'goals') query = query.order('season_goals', { ascending: false, nullsFirst: false });
-  else if (sort === 'g90') query = query.order('goals_per90', { ascending: false, nullsFirst: false });
-  else if (sort === 'a90') query = query.order('assists_per90', { ascending: false, nullsFirst: false });
-  else if (sort === 'age') query = query.order('age', { ascending: true, nullsFirst: false });
-  else if (sort === 'contract') query = query.order('contract_months_remaining', { ascending: true, nullsFirst: false });
-  else if (sort === 'recent') query = query.order('added_at', { ascending: false });
-  else query = query.order('full_name', { ascending: true });
 
   const page = Math.max(1, Number(sp.page) || 1);
   const from = (page - 1) * PAGE_SIZE;
@@ -82,7 +124,12 @@ export default async function PlayersPage({ searchParams }: { searchParams: Sear
     ]);
 
   const hasNext = (data?.length ?? 0) > PAGE_SIZE;
-  const players = ((data ?? []) as PlayerCardData[]).slice(0, PAGE_SIZE);
+  const players = (
+    needsView
+      ? ((data ?? []) as PlayerCardData[])
+      : // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ((data ?? []) as any[]).map(fromCachedPlayer)
+  ).slice(0, PAGE_SIZE);
   const view = sp.view === 'grid' ? 'grid' : 'list';
 
   const positionOptions = Array.from(
@@ -111,7 +158,9 @@ export default async function PlayersPage({ searchParams }: { searchParams: Sear
             ? 'Query failed'
             : `${players.length}${hasNext ? '+' : ''} player${players.length === 1 ? '' : 's'}${page > 1 ? ` · page ${page}` : ''}`}
         </p>
-        <p className="eyebrow hidden sm:block">Counting statistics · {players[0]?.season_name ?? 'season'}</p>
+        <p className="eyebrow hidden sm:block">
+          {sort === 'fit' ? 'Ranked by GBM opportunity model' : 'Counting statistics from the connected dataset'}
+        </p>
       </div>
 
       {error ? (

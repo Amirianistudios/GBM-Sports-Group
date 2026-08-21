@@ -67,7 +67,7 @@ export function PlayerFilters({
           {activeCount > 0 && (
             <span
               className="data text-[0.625rem] px-1.5 rounded-full"
-              style={{ background: 'var(--color-verified)', color: '#fff' }}
+              style={{ background: 'var(--color-verified)', color: '#06201C' }}
             >
               {activeCount}
             </span>
@@ -107,8 +107,9 @@ export function PlayerFilters({
           <Select label="Contract ends within" name="contract" value={params.get('contract') ?? ''}
                   options={[['3', '3 months'], ['6', '6 months'], ['12', '12 months'], ['18', '18 months'], ['24', '24 months']]}
                   onChange={(v) => apply({ contract: v })} />
-          <Select label="Sort by" name="sort" value={params.get('sort') ?? 'value'}
+          <Select label="Sort by" name="sort" value={params.get('sort') ?? 'fit'}
                   options={[
+                    ['fit', 'GBM fit (opportunity)'],
                     ['value', 'Market value'],
                     ['growth', 'Value growth (12m)'],
                     ['signal', 'Signal score'],
