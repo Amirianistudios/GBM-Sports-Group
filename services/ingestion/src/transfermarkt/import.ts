@@ -21,6 +21,7 @@ import { foot, normalizeName, parseFee, tmPlayerUrl } from '../normalize.js';
 import { admin, selectAll, upsertChunked } from '../supabase.js';
 import { paths } from '../env.js';
 import { importSeasonStats } from './stats.js';
+import { selectPlayers } from './select.js';
 import type { IngestionRun } from '../run.js';
 
 const PROVIDER = 'TRANSFERMARKT_DATASET';
@@ -48,7 +49,11 @@ function table(name: string) {
 }
 
 export interface ImportOptions {
-  /** Cap on players imported, newest season first. Omit for the full dataset. */
+  /**
+   * Cap on players imported, GBM priority order (see select.ts): active
+   * players ranked by age, target markets, value band, contract window.
+   * Omit for the full dataset.
+   */
   maxPlayers?: number;
   /** Only import players whose last recorded season is >= this year. */
   sinceSeason?: number;
@@ -265,8 +270,14 @@ async function importPlayers(
     rows = rows.filter((r) => (int(r.last_season) ?? 0) >= opts.sinceSeason!);
   }
   if (opts.maxPlayers) {
-    rows.sort((a, b) => (int(b.last_season) ?? 0) - (int(a.last_season) ?? 0));
-    rows = rows.slice(0, opts.maxPlayers);
+    const compRows = await collect(table('competitions'));
+    const competitionCountry = new Map<string, string>();
+    for (const c of compRows) {
+      const id = str(c.competition_id);
+      const country = str(c.country_name);
+      if (id && country) competitionCountry.set(id, country);
+    }
+    rows = selectPlayers(rows, opts.maxPlayers, { competitionCountry, today: new Date() });
   }
 
   const updates: Record<string, unknown>[] = [];
