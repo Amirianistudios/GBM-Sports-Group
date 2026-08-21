@@ -27,7 +27,7 @@ on:
   workflow_dispatch:
     inputs:
       max_players:
-        description: 'Cap on players imported (newest active first). Empty = full dataset.'
+        description: 'Cap on players imported (GBM priority order — services/ingestion/src/transfermarkt/select.ts). Empty = full dataset.'
         required: false
         type: string
       force:
