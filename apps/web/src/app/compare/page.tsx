@@ -69,9 +69,14 @@ export default async function ComparePage({ searchParams }: { searchParams: Sear
   const ids = (sp.ids ?? '').split(',').map((s) => s.trim()).filter(Boolean).slice(0, 4);
   const supabase = await createClient();
 
-  const { data: rows } = ids.length
+  const { data: rows, error: rowsError } = ids.length
     ? await supabase.from('v_player_discovery').select('*').in('player_id', ids)
-    : { data: [] as DiscoveryRow[] };
+    : { data: [] as DiscoveryRow[], error: null };
+  if (rowsError) {
+    // A silently-empty comparison is indistinguishable from bad ids;
+    // the failure must at least reach the runtime logs.
+    console.error(`[compare] player lookup failed — ${rowsError.code ?? ''} ${rowsError.message}`);
+  }
 
   // Preserve the URL's order — it is the reading order.
   const players = ids
