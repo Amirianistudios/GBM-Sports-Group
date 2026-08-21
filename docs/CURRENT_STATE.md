@@ -184,11 +184,32 @@ in a build or a typecheck.
 
 ## Application
 
-Fourteen routes, all building: `/`, `/login`, `/players`, `/players/[id]`,
+Nineteen page routes, all building (Sprint 1 of the product transformation,
+2026-08-22, added `/radar`, `/trends`, `/portfolio`, `/team`, `/settings`): `/`, `/login`, `/players`, `/players/[id]`,
 `/players/[id]/report/new`, `/compare`, `/clubs`, `/discover`, `/scouting`,
 `/watchlists`, `/representation`, `/data`, `/auth/signout`, `/_not-found`.
 Auth is enforced for the whole app by `src/proxy.ts`; there is no public
 surface.
+
+**Sprint 1 — product transformation (2026-08-22).** The interface moved from
+an internal dashboard to a product: a card grammar with elevation and motion
+tokens; portraits everywhere via next/image (98.5% of players carry a working
+URL; monogram fallback); player cards in grid and list with flags, trends,
+contract runway, signals and GBM badges; a tabbed profile (Overview /
+Performance / Market / Career / Representation / GBM Notes); the dashboard
+rebuilt as an intelligence feed (rising players, emerging U21, contract
+opportunities, representation research with its caveat, portfolio strip);
+Market Radar (movement and opportunity queries) and Trends (median-based
+cohort analytics with visible cohort sizes); four-group navigation
+(Intelligence / Scouting / GBM / Organization) with a purpose-built mobile
+menu sheet; route-level loading skeletons; pagination via the limit+1
+pattern; league display labels; and migration 0015 rewriting
+v_representation_opportunities with per-player laterals (dashboard's worst
+query: measured 4.6 ms, previously the driver of ~9-11 s TTFB) plus
+v_league_options for millisecond filter dropdowns. Login now performs a full
+document navigation (a replace-then-refresh race could strand loading
+skeletons). The Team page carries the real organization; Portfolio ships an
+honest empty state until portfolio management lands — no invented entries.
 
 The scouting experience built on 2026-08-20 (validation record:
 [`STAGED_DATA_VALIDATION.md`](STAGED_DATA_VALIDATION.md); design rationale:

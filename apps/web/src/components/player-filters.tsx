@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
+import { leagueLabel } from '@/lib/format';
 
 /**
  * Search + filter drawer.
@@ -88,7 +89,7 @@ export function PlayerFilters({
 
           {leagues.length > 0 && (
             <Select label="League (this season)" name="league" value={params.get('league') ?? ''}
-                    options={leagues} onChange={(v) => apply({ league: v })} />
+                    options={leagues.map((l) => [l, leagueLabel(l) ?? l] as [string, string])} onChange={(v) => apply({ league: v })} />
           )}
 
           <Number label="Min age" value={params.get('ageMin') ?? ''} onChange={(v) => apply({ ageMin: v })} />

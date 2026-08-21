@@ -122,3 +122,77 @@ export function watchlistStatusClass(status: string | null | undefined): string 
       return 'badge badge-neutral';
   }
 }
+
+/**
+ * Presentation labels for the dataset's competition slugs ("ligue-1",
+ * "laliga"). Display transform only — filters and queries always use the raw
+ * stored value. Unknown slugs title-case deterministically.
+ */
+const LEAGUE_LABELS: Record<string, string> = {
+  'premier-league': 'Premier League',
+  laliga: 'LaLiga',
+  bundesliga: 'Bundesliga',
+  'serie-a': 'Serie A',
+  'ligue-1': 'Ligue 1',
+  'liga-portugal': 'Liga Portugal',
+  'liga-portugal-bwin': 'Liga Portugal',
+  eredivisie: 'Eredivisie',
+  'super-lig': 'Süper Lig',
+  'jupiler-pro-league': 'Pro League',
+  'premier-liga': 'Premier Liga',
+  'uefa-champions-league': 'Champions League',
+  'uefa-europa-league': 'Europa League',
+  'europa-league': 'Europa League',
+  'uefa-conference-league': 'Conference League',
+  'copa-del-rey': 'Copa del Rey',
+  'fa-cup': 'FA Cup',
+  'efl-cup': 'EFL Cup',
+  'dfb-pokal': 'DFB-Pokal',
+  'coppa-italia': 'Coppa Italia',
+  'coupe-de-france': 'Coupe de France',
+  'world-cup': 'World Cup',
+  supercopa: 'Supercopa',
+  'saudi-pro-league': 'Saudi Pro League',
+  'major-league-soccer': 'MLS',
+};
+
+export function leagueLabel(slug: string | null | undefined): string | null {
+  if (!slug) return null;
+  if (LEAGUE_LABELS[slug]) return LEAGUE_LABELS[slug];
+  if (!/^[a-z0-9-]+$/.test(slug)) return slug; // already a display name
+  return slug
+    .split('-')
+    .map((w) => (w.length <= 2 ? w.toUpperCase() : w[0].toUpperCase() + w.slice(1)))
+    .join(' ');
+}
+
+/** Discovery-signal vocabulary, humanized. Unknown types fall back legibly. */
+const SIGNAL_LABELS: Record<string, string> = {
+  RAPID_VALUE_GROWTH: 'Rapid value growth',
+  CONTRACT_EXPIRING: 'Contract expiring',
+  BREAKOUT_MINUTES: 'Breakout minutes',
+  UNDERVALUED_PERFORMER: 'Undervalued performer',
+  YOUNG_HIGH_VALUE: 'Young high value',
+};
+
+export function signalLabel(type: string | null | undefined): string | null {
+  if (!type) return null;
+  return SIGNAL_LABELS[type] ?? statusLabel(type);
+}
+
+/** Trend arrow + class for a 12-month value change. Glyph AND colour, never colour alone. */
+export function trend(pct: number | null | undefined): { glyph: string; className: string; text: string } | null {
+  if (pct === null || pct === undefined) return null;
+  const n = Number(pct);
+  if (n > 0.5) return { glyph: '▲', className: 'trend-up', text: `+${n.toFixed(0)}%` };
+  if (n < -0.5) return { glyph: '▼', className: 'trend-down', text: `${n.toFixed(0)}%` };
+  return { glyph: '▬', className: 'trend-flat', text: '0%' };
+}
+
+/** Contract runway phrasing: "18 mo" style, attention under 18 months. */
+export function contractRunway(months: number | null | undefined): { text: string; urgent: boolean } | null {
+  if (months === null || months === undefined) return null;
+  const m = Number(months);
+  if (m <= 0) return { text: 'expired', urgent: true };
+  return { text: `${m} mo left`, urgent: m <= 18 };
+}

@@ -9,11 +9,26 @@ import { SeasonStatsTable, type SeasonStatRow } from '@/components/season-stats-
 import { AddNote } from '@/components/add-note';
 import { PlayerLinks, type PlayerLink } from '@/components/player-links';
 import { PlayerPhoto } from '@/components/player-photo';
+import { Tabs } from '@/components/tabs';
+import { countryFlag } from '@/lib/flags';
 import {
-  formatAge, formatCurrency, formatDate, footLabel, monthsUntil, positionCode, statusLabel,
+  formatAge, formatCurrency, formatDate, footLabel, monthsUntil, positionCode, statusLabel, trend,
 } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * Latest valuation dated a year or more ago. The clock read lives outside
+ * the component body — the page is force-dynamic, so it re-evaluates per
+ * request, and React's purity rule rightly refuses Date.now() in render.
+ */
+function valueOneYearAgo(
+  marketValues: Array<{ valued_on: string; value_amount: number | string }>,
+): number | null {
+  const cut = Date.now() - 31_557_600_000;
+  const past = marketValues.filter((m) => new Date(m.valued_on).getTime() <= cut);
+  return past.length ? Number(past[past.length - 1].value_amount) : null;
+}
 
 /** External profile links, so a scout never has to Google a player. */
 const PROVIDER_LABELS: Record<string, string> = {
@@ -33,6 +48,13 @@ const PROVIDER_LABELS: Record<string, string> = {
   WIKIDATA: 'Wikidata',
 };
 
+/**
+ * PLAYER PROFILE — a professional scouting document.
+ * Header carries identity and the headline facts (traceable via the source
+ * stripes); the body is tabbed: Overview / Performance / Market / Career /
+ * Representation / GBM Notes. Everything renders from one server pass;
+ * missing data stays visibly missing — nothing is estimated or invented.
+ */
 export default async function PlayerProfile({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
@@ -95,14 +117,19 @@ export default async function PlayerProfile({ params }: { params: Promise<{ id: 
   const nationality = Array.isArray(player.nationality) ? player.nationality[0] : player.nationality;
   const providerCount = coverage?.provider_count ?? 0;
   const conflictKeys = new Set((conflicts ?? []).map((c) => c.fact_key));
+  const flag = countryFlag(nationality?.name);
 
-  const factSources = (key: string) =>
-    (facts ?? []).filter((f) => f.fact_key === key).length;
+  const factSources = (key: string) => (facts ?? []).filter((f) => f.fact_key === key).length;
 
   const contractMonths = monthsUntil(contract?.expires_on);
   const latestValue = (marketValues ?? []).length
     ? Number(marketValues![marketValues!.length - 1].value_amount)
     : null;
+  const yearAgoValue = valueOneYearAgo(marketValues ?? []);
+  const valueTrend =
+    latestValue !== null && yearAgoValue !== null && yearAgoValue > 0
+      ? trend(((latestValue - yearAgoValue) / yearAgoValue) * 100)
+      : null;
 
   // Season rows, newest season first, highest minutes first within a season.
   const statRows: SeasonStatRow[] = (seasonStats ?? [])
@@ -140,109 +167,24 @@ export default async function PlayerProfile({ params }: { params: Promise<{ id: 
 
   const isRepresentedByGbm = player.gbm_status && !['NONE', 'UNTRACKED'].includes(player.gbm_status);
 
-  return (
-    <AppShell eyebrow="Player" title={player.full_name}>
-      {/* ---------------------------------------------------------------- */}
-      {/* HEADER                                                            */}
-      {/* ---------------------------------------------------------------- */}
-      <section className="px-4 md:px-6 pt-2">
-        <div className="surface p-4">
-          <div className="flex items-start gap-4">
-            <PlayerPhoto src={player.image_url} name={player.full_name} />
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-2xl font-bold tracking-tight leading-tight">{player.full_name}</h2>
-                {isRepresentedByGbm && (
-                  <span className="badge badge-verified">GBM · {statusLabel(player.gbm_status)}</span>
-                )}
+  /* ------------------------------ TAB PANELS ---------------------------- */
+
+  const overviewPanel = (
+    <>
+      {(signals ?? []).length > 0 && (
+        <Section title="Discovery signals">
+          {(signals ?? []).map((s) => (
+            <div key={s.id} className="px-4 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
+              <div className="flex items-center gap-2">
+                <span className="badge badge-neutral">{statusLabel(s.signal_type)}</span>
+                <span className="data text-xs" style={{ color: 'var(--muted)' }}>score {Number(s.score).toFixed(1)}</span>
               </div>
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-2 text-sm" style={{ color: 'var(--muted)' }}>
-                <span className="pos-chip">
-                  {positionCode(player.primary_position)}
-                  <span aria-hidden="true">·</span>
-                  <span className="data">{formatAge(player.date_of_birth)}y</span>
-                </span>
-                <span>{club?.name ?? 'Club unknown'}</span>
-                {nationality?.name && <><span aria-hidden="true">·</span><span>{nationality.name}</span></>}
-              </div>
+              <p className="text-sm mt-1.5 leading-relaxed">{s.rationale}</p>
             </div>
-            <div className="flex flex-col items-end gap-2 shrink-0">
-              <WatchlistButton playerId={id} />
-              <Link
-                href={`/compare?ids=${id}`}
-                className="px-3 py-2 rounded-[3px] text-sm font-semibold"
-                style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}
-              >
-                Compare
-              </Link>
-            </div>
-          </div>
+          ))}
+        </Section>
+      )}
 
-          <dl className="grid grid-cols-3 sm:grid-cols-6 gap-x-3 gap-y-3 mt-4 pt-4" style={{ borderTop: '1px solid var(--border)' }}>
-            <Fact label="Market value" value={formatCurrency(latestValue)} sources={0} />
-            <Fact label="Born" value={formatDate(player.date_of_birth)} sources={factSources('player.date_of_birth')} conflict={conflictKeys.has('player.date_of_birth')} />
-            <Fact label="Height" value={player.height_cm ? `${player.height_cm} cm` : '—'} sources={factSources('player.height_cm')} conflict={conflictKeys.has('player.height_cm')} />
-            <Fact label="Foot" value={footLabel(player.foot)} sources={0} />
-            <Fact label="Position" value={player.primary_position ?? '—'} sources={factSources('player.primary_position')} conflict={conflictKeys.has('player.primary_position')} />
-            <Fact label="Sources" value={String(providerCount)} sources={0} />
-          </dl>
-        </div>
-      </section>
-
-      {/* ---------------------------------------------------------------- */}
-      {/* PERFORMANCE                                                       */}
-      {/* ---------------------------------------------------------------- */}
-      <Section
-        title="Performance"
-        subtitle={`${career.apps} apps · ${career.minutes.toLocaleString('en-GB')}′ · ${career.goals}G ${career.assists}A recorded`}
-      >
-        <SeasonStatsTable rows={statRows} />
-        <p className="px-4 py-3 text-xs leading-relaxed" style={{ color: 'var(--muted)', borderTop: '1px solid var(--border)' }}>
-          Counting statistics from the connected dataset&#8217;s competition coverage. Advanced metrics
-          (xG, duels, progressive actions) and positional analytics (shot maps, heatmaps, passing
-          maps) appear only when a licensed event-data provider is connected — GBM never estimates
-          or fabricates them.
-        </p>
-      </Section>
-
-      {/* ---------------------------------------------------------------- */}
-      {/* MARKET VALUE                                                      */}
-      {/* ---------------------------------------------------------------- */}
-      <Section title="Market value" subtitle={`${marketValues?.length ?? 0} valuations`}>
-        <ValueChart points={(marketValues ?? []).map((m) => ({ valued_on: m.valued_on, value_amount: Number(m.value_amount) }))} />
-      </Section>
-
-      {/* ---------------------------------------------------------------- */}
-      {/* CONTRACT                                                          */}
-      {/* ---------------------------------------------------------------- */}
-      <Section title="Contract">
-        <div className="p-4 flex items-baseline gap-4">
-          <div>
-            <p className="eyebrow">Expires</p>
-            <p className="data text-lg font-semibold mt-0.5">{formatDate(contract?.expires_on)}</p>
-          </div>
-          {contractMonths !== null && (
-            <div>
-              <p className="eyebrow">Remaining</p>
-              <p className="data text-lg font-semibold mt-0.5">
-                {contractMonths} mo
-                {contractMonths <= 18 && (
-                  <span className="ml-2 badge badge-attention align-middle">Entering final window</span>
-                )}
-              </p>
-            </div>
-          )}
-          {!contract?.expires_on && (
-            <p className="text-xs self-center" style={{ color: 'var(--muted)' }}>
-              No contract information from connected sources.
-            </p>
-          )}
-        </div>
-      </Section>
-
-      {/* ---------------------------------------------------------------- */}
-      {/* AVAILABILITY                                                      */}
-      {/* ---------------------------------------------------------------- */}
       <Section title="Availability" subtitle={injuries?.length ? `${injuries.length} recorded` : undefined}>
         {(injuries ?? []).length === 0 ? (
           <p className="text-sm px-4 py-5" style={{ color: 'var(--muted)' }}>
@@ -267,9 +209,137 @@ export default async function PlayerProfile({ params }: { params: Promise<{ id: 
         )}
       </Section>
 
-      {/* ---------------------------------------------------------------- */}
-      {/* REPRESENTATION — the GBM-specific module                          */}
-      {/* ---------------------------------------------------------------- */}
+      <Section title="Sources" subtitle={`Linked across ${providerCount} provider${providerCount === 1 ? '' : 's'}`}>
+        <div className="p-4 flex flex-wrap gap-2">
+          {(externalIds ?? []).map((e) => (
+            <a
+              key={e.id}
+              href={e.url ?? '#'}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3 py-2 rounded-[4px] text-sm font-semibold flex items-center gap-2"
+              style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}
+            >
+              {PROVIDER_LABELS[e.provider_code] ?? e.provider_code}
+              <span className="data text-xs" style={{ color: 'var(--muted)' }}>{e.external_id}</span>
+              <span aria-hidden="true" style={{ color: 'var(--muted)' }}>↗</span>
+            </a>
+          ))}
+          {(externalIds ?? []).length === 0 && (
+            <p className="text-sm" style={{ color: 'var(--muted)' }}>No provider identities linked yet.</p>
+          )}
+        </div>
+      </Section>
+
+      <Section title="Data quality">
+        <div className="p-4">
+          {(conflicts ?? []).length === 0 ? (
+            <p className="text-sm" style={{ color: 'var(--muted)' }}>
+              No conflicts detected between sources for this player.
+            </p>
+          ) : (
+            <>
+              <p className="eyebrow mb-2">Sources disagree</p>
+              {(conflicts ?? []).map((c) => (
+                <div key={c.fact_key} className="mb-3">
+                  <p className="text-sm font-semibold">{c.fact_key}</p>
+                  <ul className="mt-1 space-y-0.5">
+                    {(c.sources as Array<{ provider: string; value: string }>).map((s, i) => (
+                      <li key={i} className="data text-xs" style={{ color: 'var(--muted)' }}>
+                        {s.provider}: {s.value}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+              <p className="text-xs mt-2" style={{ color: 'var(--muted)' }}>
+                GBM keeps every reported value. Nothing is silently overwritten.
+              </p>
+            </>
+          )}
+        </div>
+      </Section>
+    </>
+  );
+
+  const performancePanel = (
+    <Section
+      title="Season by season"
+      subtitle={`${career.apps} apps · ${career.minutes.toLocaleString('en-GB')}′ · ${career.goals}G ${career.assists}A recorded`}
+    >
+      <SeasonStatsTable rows={statRows} />
+      <p className="px-4 py-3 text-xs leading-relaxed" style={{ color: 'var(--muted)', borderTop: '1px solid var(--border)' }}>
+        Counting statistics from the connected dataset&#8217;s competition coverage. Advanced metrics
+        (xG, duels, progressive actions) and positional analytics (shot maps, heatmaps, passing
+        maps) appear only when a licensed event-data provider is connected — GBM never estimates
+        or fabricates them.
+      </p>
+    </Section>
+  );
+
+  const marketPanel = (
+    <>
+      <Section title="Market value" subtitle={`${marketValues?.length ?? 0} valuations`}>
+        <ValueChart points={(marketValues ?? []).map((m) => ({ valued_on: m.valued_on, value_amount: Number(m.value_amount) }))} />
+      </Section>
+
+      <Section title="Contract">
+        <div className="p-4 flex items-baseline gap-4">
+          <div>
+            <p className="eyebrow">Expires</p>
+            <p className="data text-lg font-semibold mt-0.5">{formatDate(contract?.expires_on)}</p>
+          </div>
+          {contractMonths !== null && (
+            <div>
+              <p className="eyebrow">Remaining</p>
+              <p className="data text-lg font-semibold mt-0.5">
+                {contractMonths} mo
+                {contractMonths <= 18 && (
+                  <span className="ml-2 badge badge-attention align-middle">Entering final window</span>
+                )}
+              </p>
+            </div>
+          )}
+          {!contract?.expires_on && (
+            <p className="text-xs self-center" style={{ color: 'var(--muted)' }}>
+              No contract information from connected sources.
+            </p>
+          )}
+        </div>
+      </Section>
+    </>
+  );
+
+  const careerPanel = (
+    <Section title="Transfer history" subtitle={transfers?.length ? `${transfers.length} moves` : undefined}>
+      {(transfers ?? []).length === 0 ? (
+        <p className="text-sm px-4 py-5" style={{ color: 'var(--muted)' }}>
+          No transfer history from connected sources.
+        </p>
+      ) : (
+        (transfers ?? []).map((t) => (
+          <div key={t.id} className="px-4 py-3 flex items-center gap-3" style={{ borderBottom: '1px solid var(--border)' }}>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm">
+                <span style={{ color: 'var(--muted)' }}>{t.from_club_name_raw ?? '—'}</span>
+                <span className="mx-1.5" aria-hidden="true">→</span>
+                <span className="font-semibold">{t.to_club_name_raw ?? '—'}</span>
+              </p>
+              <p className="data text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
+                {formatDate(t.transfer_date)} {t.season_name ? `· ${t.season_name}` : ''}
+              </p>
+            </div>
+            <span className="data text-sm font-semibold shrink-0">
+              {t.is_free ? 'Free' : formatCurrency(t.fee_amount ? Number(t.fee_amount) : null)}
+            </span>
+          </div>
+        ))
+      )}
+    </Section>
+  );
+
+  const representationPanel = (
+    <>
       <Section title="Representation">
         <div className="p-4">
           {!representation ? (
@@ -316,189 +386,187 @@ export default async function PlayerProfile({ params }: { params: Promise<{ id: 
         </div>
       </Section>
 
-      {/* ---------------------------------------------------------------- */}
-      {/* SCOUTING — GBM opinion, never mixed with provider statistics      */}
-      {/* ---------------------------------------------------------------- */}
-      <Section
-        title="Scouting"
-        subtitle={`${reports?.length ?? 0} report${(reports?.length ?? 0) === 1 ? '' : 's'}`}
-        action={
-          <Link
-            href={`/players/${id}/report/new`}
-            className="text-xs font-semibold"
-            style={{ color: 'var(--color-verified-2)' }}
-          >
-            New report
-          </Link>
-        }
-      >
-        {(reports ?? []).length === 0 ? (
-          <p className="text-sm px-4 py-4" style={{ color: 'var(--muted)' }}>
-            No GBM scouting reports for this player yet.
-          </p>
-        ) : (
-          (reports ?? []).map((r) => (
-            <div key={r.id} className="px-4 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="data text-xs" style={{ color: 'var(--muted)' }}>{formatDate(r.observed_on)}</span>
-                <span className="badge badge-neutral">{statusLabel(r.recommendation)}</span>
-                {r.is_draft && <span className="badge badge-neutral">draft</span>}
-                {r.overall_rating != null && (
-                  <span className="data text-sm font-semibold ml-auto">
-                    {r.overall_rating}/10
-                    {r.potential_rating != null && (
-                      <span style={{ color: 'var(--muted)' }}> · pot {r.potential_rating}/10</span>
-                    )}
-                  </span>
-                )}
-              </div>
-              <div className="grid grid-cols-4 gap-2 mt-2 max-w-sm">
-                <MiniRating label="Tech" value={r.technical} />
-                <MiniRating label="Tact" value={r.tactical} />
-                <MiniRating label="Phys" value={r.physical} />
-                <MiniRating label="Ment" value={r.mental} />
-              </div>
-              {r.summary && <p className="text-sm mt-2 leading-relaxed">{r.summary}</p>}
-              {r.strengths && (
-                <p className="text-xs mt-2 leading-relaxed"><strong>Strengths:</strong> {r.strengths}</p>
-              )}
-              {r.weaknesses && (
-                <p className="text-xs mt-1 leading-relaxed"><strong>Weaknesses:</strong> {r.weaknesses}</p>
-              )}
-            </div>
-          ))
-        )}
-
-        {(ratings ?? []).length > 0 && (
-          <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
-            <p className="eyebrow mb-2">Attribute ratings</p>
-            <div className="flex flex-wrap gap-2">
-              {(ratings ?? []).map((rt) => (
-                <span key={rt.attribute} className="pos-chip">
-                  {rt.attribute} <span className="data font-semibold">{rt.rating}</span>
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div className="px-4 py-3" style={{ borderBottom: (notes ?? []).length ? '1px solid var(--border)' : undefined }}>
-          <AddNote playerId={id} />
-        </div>
-
-        {(notes ?? []).map((n) => (
-          <div key={n.id} className="px-4 py-2.5" style={{ borderBottom: '1px solid var(--border)' }}>
-            <p className="text-sm leading-relaxed">{n.body}</p>
-            <p className="data text-xs mt-1" style={{ color: 'var(--muted)' }}>{formatDate(n.created_at)}</p>
-          </div>
-        ))}
-      </Section>
-
-      {/* ---------------------------------------------------------------- */}
-      {/* DISCOVERY SIGNALS                                                 */}
-      {/* ---------------------------------------------------------------- */}
-      {(signals ?? []).length > 0 && (
-        <Section title="Discovery signals">
-          {(signals ?? []).map((s) => (
-            <div key={s.id} className="px-4 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
-              <div className="flex items-center gap-2">
-                <span className="badge badge-neutral">{statusLabel(s.signal_type)}</span>
-                <span className="data text-xs" style={{ color: 'var(--muted)' }}>score {Number(s.score).toFixed(1)}</span>
-              </div>
-              <p className="text-sm mt-1.5 leading-relaxed">{s.rationale}</p>
-            </div>
-          ))}
-        </Section>
-      )}
-
-      {/* ---------------------------------------------------------------- */}
-      {/* TRANSFERS                                                         */}
-      {/* ---------------------------------------------------------------- */}
-      {(transfers ?? []).length > 0 && (
-        <Section title="Transfer history">
-          {(transfers ?? []).map((t) => (
-            <div key={t.id} className="px-4 py-3 flex items-center gap-3" style={{ borderBottom: '1px solid var(--border)' }}>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm">
-                  <span style={{ color: 'var(--muted)' }}>{t.from_club_name_raw ?? '—'}</span>
-                  <span className="mx-1.5" aria-hidden="true">→</span>
-                  <span className="font-semibold">{t.to_club_name_raw ?? '—'}</span>
-                </p>
-                <p className="data text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
-                  {formatDate(t.transfer_date)} {t.season_name ? `· ${t.season_name}` : ''}
-                </p>
-              </div>
-              <span className="data text-sm font-semibold shrink-0">
-                {t.is_free ? 'Free' : formatCurrency(t.fee_amount ? Number(t.fee_amount) : null)}
-              </span>
-            </div>
-          ))}
-        </Section>
-      )}
-
-      {/* ---------------------------------------------------------------- */}
-      {/* OFFICIAL LINKS                                                    */}
-      {/* ---------------------------------------------------------------- */}
       <Section title="Official links">
         <PlayerLinks playerId={id} links={(links ?? []) as PlayerLink[]} />
       </Section>
+    </>
+  );
 
-      {/* ---------------------------------------------------------------- */}
-      {/* SOURCES & EXTERNAL LINKS                                          */}
-      {/* ---------------------------------------------------------------- */}
-      <Section title="Sources" subtitle={`Linked across ${providerCount} provider${providerCount === 1 ? '' : 's'}`}>
-        <div className="p-4 flex flex-wrap gap-2">
-          {(externalIds ?? []).map((e) => (
-            <a
-              key={e.id}
-              href={e.url ?? '#'}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-3 py-2 rounded-[3px] text-sm font-semibold flex items-center gap-2"
-              style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}
-            >
-              {PROVIDER_LABELS[e.provider_code] ?? e.provider_code}
-              <span className="data text-xs" style={{ color: 'var(--muted)' }}>{e.external_id}</span>
-              <span aria-hidden="true" style={{ color: 'var(--muted)' }}>↗</span>
-            </a>
-          ))}
-          {(externalIds ?? []).length === 0 && (
-            <p className="text-sm" style={{ color: 'var(--muted)' }}>No provider identities linked yet.</p>
-          )}
-        </div>
-      </Section>
+  const notesPanel = (
+    <Section
+      title="Scouting"
+      subtitle={`${reports?.length ?? 0} report${(reports?.length ?? 0) === 1 ? '' : 's'}`}
+      action={
+        <Link
+          href={`/players/${id}/report/new`}
+          className="text-xs font-semibold"
+          style={{ color: 'var(--color-verified-2)' }}
+        >
+          New report
+        </Link>
+      }
+    >
+      {(reports ?? []).length === 0 ? (
+        <p className="text-sm px-4 py-4" style={{ color: 'var(--muted)' }}>
+          No GBM scouting reports for this player yet.
+        </p>
+      ) : (
+        (reports ?? []).map((r) => (
+          <div key={r.id} className="px-4 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="data text-xs" style={{ color: 'var(--muted)' }}>{formatDate(r.observed_on)}</span>
+              <span className="badge badge-neutral">{statusLabel(r.recommendation)}</span>
+              {r.is_draft && <span className="badge badge-neutral">draft</span>}
+              {r.overall_rating != null && (
+                <span className="data text-sm font-semibold ml-auto">
+                  {r.overall_rating}/10
+                  {r.potential_rating != null && (
+                    <span style={{ color: 'var(--muted)' }}> · pot {r.potential_rating}/10</span>
+                  )}
+                </span>
+              )}
+            </div>
+            <div className="grid grid-cols-4 gap-2 mt-2 max-w-sm">
+              <MiniRating label="Tech" value={r.technical} />
+              <MiniRating label="Tact" value={r.tactical} />
+              <MiniRating label="Phys" value={r.physical} />
+              <MiniRating label="Ment" value={r.mental} />
+            </div>
+            {r.summary && <p className="text-sm mt-2 leading-relaxed">{r.summary}</p>}
+            {r.strengths && (
+              <p className="text-xs mt-2 leading-relaxed"><strong>Strengths:</strong> {r.strengths}</p>
+            )}
+            {r.weaknesses && (
+              <p className="text-xs mt-1 leading-relaxed"><strong>Weaknesses:</strong> {r.weaknesses}</p>
+            )}
+          </div>
+        ))
+      )}
 
-      {/* ---------------------------------------------------------------- */}
-      {/* DATA QUALITY                                                      */}
-      {/* ---------------------------------------------------------------- */}
-      <Section title="Data quality">
-        <div className="p-4">
-          {(conflicts ?? []).length === 0 ? (
-            <p className="text-sm" style={{ color: 'var(--muted)' }}>
-              No conflicts detected between sources for this player.
-            </p>
-          ) : (
-            <>
-              <p className="eyebrow mb-2">Sources disagree</p>
-              {(conflicts ?? []).map((c) => (
-                <div key={c.fact_key} className="mb-3">
-                  <p className="text-sm font-semibold">{c.fact_key}</p>
-                  <ul className="mt-1 space-y-0.5">
-                    {(c.sources as Array<{ provider: string; value: string }>).map((s, i) => (
-                      <li key={i} className="data text-xs" style={{ color: 'var(--muted)' }}>
-                        {s.provider}: {s.value}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-              <p className="text-xs mt-2" style={{ color: 'var(--muted)' }}>
-                GBM keeps every reported value. Nothing is silently overwritten.
-              </p>
-            </>
-          )}
+      {(ratings ?? []).length > 0 && (
+        <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
+          <p className="eyebrow mb-2">Attribute ratings</p>
+          <div className="flex flex-wrap gap-2">
+            {(ratings ?? []).map((rt) => (
+              <span key={rt.attribute} className="pos-chip">
+                {rt.attribute} <span className="data font-semibold">{rt.rating}</span>
+              </span>
+            ))}
+          </div>
         </div>
-      </Section>
+      )}
+
+      <div className="px-4 py-3" style={{ borderBottom: (notes ?? []).length ? '1px solid var(--border)' : undefined }}>
+        <AddNote playerId={id} />
+      </div>
+
+      {(notes ?? []).map((n) => (
+        <div key={n.id} className="px-4 py-2.5" style={{ borderBottom: '1px solid var(--border)' }}>
+          <p className="text-sm leading-relaxed">{n.body}</p>
+          <p className="data text-xs mt-1" style={{ color: 'var(--muted)' }}>{formatDate(n.created_at)}</p>
+        </div>
+      ))}
+    </Section>
+  );
+
+  return (
+    <AppShell eyebrow="Player" title={player.full_name}>
+      {/* ---------------------------------------------------------------- */}
+      {/* HEADER — identity first                                           */}
+      {/* ---------------------------------------------------------------- */}
+      <section className="px-4 md:px-6 pt-3">
+        <div className="card p-4 md:p-5">
+          <div className="flex items-start gap-4">
+            <PlayerPhoto src={player.image_url} name={player.full_name} size={96} priority />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-2xl md:text-3xl font-bold tracking-tight leading-tight">{player.full_name}</h2>
+                {isRepresentedByGbm && (
+                  <span className="badge badge-gbm">GBM · {statusLabel(player.gbm_status)}</span>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-2 text-sm" style={{ color: 'var(--muted)' }}>
+                <span className="pos-chip">
+                  {positionCode(player.primary_position)}
+                  <span aria-hidden="true">·</span>
+                  <span className="data">{formatAge(player.date_of_birth)}y</span>
+                </span>
+                <span className="font-medium" style={{ color: 'var(--fg)' }}>{club?.name ?? 'Club unknown'}</span>
+                {nationality?.name && (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    {flag && <span className="flag" aria-hidden="true">{flag}</span>}
+                    <span>{nationality.name}</span>
+                  </>
+                )}
+              </div>
+              <div className="hidden md:flex items-baseline gap-3 mt-3">
+                <span className="data text-xl font-bold">{formatCurrency(latestValue)}</span>
+                {valueTrend && (
+                  <span className={`data text-sm font-semibold ${valueTrend.className}`}>
+                    <span aria-hidden="true">{valueTrend.glyph}</span> {valueTrend.text} · 12 mo
+                  </span>
+                )}
+                {contractMonths !== null && (
+                  <span className={`badge ${contractMonths <= 18 ? 'badge-attention' : 'badge-neutral'}`}>
+                    contract {contractMonths} mo
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="flex flex-col items-end gap-2 shrink-0">
+              <WatchlistButton playerId={id} />
+              <Link
+                href={`/compare?ids=${id}`}
+                className="px-3 py-2 rounded-[4px] text-sm font-semibold"
+                style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}
+              >
+                Compare
+              </Link>
+            </div>
+          </div>
+
+          <div className="md:hidden flex items-baseline gap-3 mt-3">
+            <span className="data text-lg font-bold">{formatCurrency(latestValue)}</span>
+            {valueTrend && (
+              <span className={`data text-xs font-semibold ${valueTrend.className}`}>
+                <span aria-hidden="true">{valueTrend.glyph}</span> {valueTrend.text}
+              </span>
+            )}
+          </div>
+
+          <dl className="grid grid-cols-3 sm:grid-cols-6 gap-x-3 gap-y-3 mt-4 pt-4" style={{ borderTop: '1px solid var(--border)' }}>
+            <Fact label="Born" value={formatDate(player.date_of_birth)} sources={factSources('player.date_of_birth')} conflict={conflictKeys.has('player.date_of_birth')} />
+            <Fact label="Height" value={player.height_cm ? `${player.height_cm} cm` : '—'} sources={factSources('player.height_cm')} conflict={conflictKeys.has('player.height_cm')} />
+            <Fact label="Foot" value={footLabel(player.foot)} sources={0} />
+            <Fact label="Position" value={player.primary_position ?? '—'} sources={factSources('player.primary_position')} conflict={conflictKeys.has('player.primary_position')} />
+            <Fact label="Birthplace" value={player.birth_place ?? '—'} sources={0} />
+            <Fact label="Sources" value={String(providerCount)} sources={0} />
+          </dl>
+        </div>
+      </section>
+
+      <div className="mt-3">
+        <Tabs
+          defaultTab="overview"
+          tabs={[
+            { id: 'overview', label: 'Overview' },
+            { id: 'performance', label: 'Performance' },
+            { id: 'market', label: 'Market' },
+            { id: 'career', label: 'Career' },
+            { id: 'representation', label: 'Representation' },
+            { id: 'notes', label: 'GBM Notes' },
+          ]}
+          panels={{
+            overview: overviewPanel,
+            performance: performancePanel,
+            market: marketPanel,
+            career: careerPanel,
+            representation: representationPanel,
+            notes: notesPanel,
+          }}
+        />
+      </div>
 
       <div className="h-8" />
     </AppShell>
@@ -540,7 +608,7 @@ function Fact({
 
 function MiniRating({ label, value }: { label: string; value: number | null }) {
   return (
-    <div className="text-center rounded-[3px] py-1.5" style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}>
+    <div className="text-center rounded-[4px] py-1.5" style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}>
       <div className="data text-sm font-semibold">{value ?? '—'}</div>
       <div className="eyebrow" style={{ fontSize: '0.5625rem' }}>{label}</div>
     </div>
