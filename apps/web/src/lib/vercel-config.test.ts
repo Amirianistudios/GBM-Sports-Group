@@ -22,6 +22,16 @@ import { describe, expect, it } from 'vitest';
 
 const ALLOWED_TOP_LEVEL_KEYS = new Set(['$schema', 'ignoreCommand', 'github']);
 
+/**
+ * Vercel's schema caps ignoreCommand at 256 characters. This one is easy to
+ * exceed while writing a readable shell rule, and exceeding it fails the
+ * deployment exactly as an unknown key does — silently, from the outside.
+ * The first fix for this incident removed the unknown key and left the
+ * over-long command in place, so the deployments kept failing; the number is
+ * pinned here so the next reader does not have to rediscover it.
+ */
+const IGNORE_COMMAND_MAX_LENGTH = 256;
+
 const CONFIG_PATHS = ['vercel.json', 'apps/web/vercel.json'];
 
 /** Repo root, from this file's location. */
@@ -47,6 +57,15 @@ describe('vercel.json', () => {
           `Vercel's schema sets additionalProperties:false, so these keys fail the ` +
             `deployment before the build: ${unknown.join(', ')}`,
         ).toEqual([]);
+      });
+
+      it('keeps ignoreCommand inside Vercel’s length limit', () => {
+        const cmd = String(readConfig(path).ignoreCommand ?? '');
+        expect(
+          cmd.length,
+          `ignoreCommand is ${cmd.length} characters; Vercel rejects anything ` +
+            `over ${IGNORE_COMMAND_MAX_LENGTH} and the deployment fails before the build`,
+        ).toBeLessThanOrEqual(IGNORE_COMMAND_MAX_LENGTH);
       });
 
       it('still skips only non-main previews, and builds main', () => {

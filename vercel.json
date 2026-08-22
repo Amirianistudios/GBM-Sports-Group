@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "ignoreCommand": "echo \"ignore-step: VERCEL_ENV=$VERCEL_ENV ref=$VERCEL_GIT_COMMIT_REF sha=$VERCEL_GIT_COMMIT_SHA\"; if [ \"$VERCEL_GIT_COMMIT_REF\" = \"main\" ]; then echo 'main — building'; exit 1; fi; if [ \"$VERCEL_ENV\" = \"preview\" ]; then echo 'preview of a non-main branch — skipping'; exit 0; fi; echo 'unrecognised context — building'; exit 1",
+  "ignoreCommand": "echo \"env=$VERCEL_ENV ref=$VERCEL_GIT_COMMIT_REF sha=$VERCEL_GIT_COMMIT_SHA\"; [ \"$VERCEL_GIT_COMMIT_REF\" = main ] && exit 1; [ \"$VERCEL_ENV\" = preview ] && exit 0; exit 1",
   "github": {
     "silent": false
   }
