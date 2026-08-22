@@ -396,6 +396,23 @@ position: dataset-provided portraits hotlinked via next/image with monogram
 fallback; no club badges (the dataset ships none, and guessing asset URLs is
 scraping); Wikidata/Commons is the Sprint 2 route.
 
+**Production assignment, and how it is now observable.** Twice the live
+domain kept serving a build that was not `main`'s head — the first time from
+a manual promotion, which pauses Vercel's automatic production assignment
+until someone resumes it, and nothing observable from outside said which
+commit was live. Every response now carries `x-gbm-release: <commit sha>`
+(`apps/web/next.config.ts`), so `curl -I https://gbm-sports-group.vercel.app`
+answers that question directly and any future drift is one command away from
+being caught.
+
+Verified on 2026-08-22 after automatic assignment resumed: the domain served
+`x-gbm-release: 4b3d31c` — byte-for-byte `main`'s head — and all seventeen
+authenticated routes returned 200 with their Sprint 1.5 content markers
+present (Morning Brief sections, Discover's opportunity groups, the profile
+identity hero and GBM Intelligence Summary, portraits through
+`/_next/image`, the graphite theme's `--bg: var(--color-ink)` default).
+Unauthenticated `/login` renders; unauthenticated `/players` redirects.
+
 ## Provider research
 
 Nine external sources were assessed on 2026-08-19 — see
