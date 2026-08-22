@@ -253,6 +253,23 @@ body {
 .badge-conflict  { background: color-mix(in srgb, var(--color-conflict) 16%, transparent);  color: #E0705B;                  border-color: color-mix(in srgb, var(--color-conflict) 34%, transparent); }
 .badge-neutral   { background: color-mix(in srgb, var(--fg) 8%, transparent); color: var(--muted); border-color: var(--border); }
 .badge-gbm       { background: var(--color-gbm); color: #14100A; border-color: var(--color-gbm); }
+/* Something on this card needs a person's attention today. */
+.badge-alert     { background: color-mix(in srgb, var(--color-attention) 14%, transparent); color: var(--color-attention-2); border-color: color-mix(in srgb, var(--color-attention) 30%, transparent); }
+
+/* Form controls. One definition so every GBM form looks like one product. */
+.input {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--fg);
+  border-radius: 3px;
+  padding: 0.5rem 0.625rem;
+  font-size: 0.875rem;
+  font-family: inherit;
+  transition: border-color var(--t-fast) var(--ease);
+}
+.input:focus  { outline: none; border-color: var(--color-verified); }
+.input:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* The opportunity figure — GBM's own number, always brass, always mono. */
 .opportunity { font-family: var(--font-mono); font-weight: 600; color: var(--color-gbm-2); }

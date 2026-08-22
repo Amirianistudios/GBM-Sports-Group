@@ -1,0 +1,96 @@
+# Hourly intelligence — the players GBM actually works with.
+#
+# This is deliberately a GitHub Action and not a Vercel Cron: Vercel deploys
+# the frontend and nothing else. The job writes to Supabase; the website only
+# reads what it finds there.
+#
+# "Hourly" is the wake interval, not the request rate. Each tracked player
+# carries its own `next_check_after` (services/ingestion/src/intelligence/
+# hourly.ts), so a quiet player drifts towards a daily check while a player
+# with a fixture in the window is looked at every hour. A portfolio of a few
+# dozen players therefore costs a handful of provider calls per run, not
+# hundreds — which is what keeps the free tiers intact.
+#
+# Scope is the portfolio and high-priority watchlist only. The ~7,835-player
+# discovery universe stays on the weekly dataset cadence in data-refresh.yml.
+#
+# Required repository secret:
+#   SUPABASE_SERVICE_ROLE_KEY   service key; bypasses RLS; never printed
+# Optional:
+#   API_FOOTBALL_KEY            enables injury/availability lookups
+name: hourly-intelligence-refresh
+
+on:
+  schedule:
+    # Ten past the hour: clear of the busiest cron minute, and clear of the
+    # weekly dataset refresh at 03:00.
+    - cron: '10 * * * *'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Check every tracked player, ignoring their interval.'
+        required: false
+        type: boolean
+        default: false
+      max_players:
+        description: 'Upper bound on players touched in one run.'
+        required: false
+        type: string
+        default: '60'
+
+# A slow run must never overlap the next hour's run, and must never collide
+# with the weekly import that rewrites the same tables.
+concurrency:
+  group: gbm-ingestion
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || 'https://tyzndcjuiffnyhluddce.supabase.co' }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Refresh tracked players
+        run: |
+          pnpm intel:hourly \
+            ${{ inputs.force && '--force' || '' }} \
+            --max-players ${{ inputs.max_players || '60' }} \
+            | tee logs-hourly.txt
+
+      - name: Run summary
+        if: always()
+        run: |
+          {
+            echo '## Hourly intelligence'
+            echo '```'
+            cat logs-hourly.txt 2>/dev/null | tail -40
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Retain log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hourly-intelligence-${{ github.run_number }}
+          path: logs-hourly.txt
+          retention-days: 7
+          if-no-files-found: ignore

@@ -1,3 +1,5 @@
+// Generated from the live Supabase schema. Do not edit by hand —
+// regenerate with `pnpm db:types`, which writes both copies.
 export type Json =
   | string
   | number
@@ -751,6 +753,80 @@ export type Database = {
         }
         Relationships: []
       }
+      gbm_portfolio: {
+        Row: {
+          assigned_staff_id: string | null
+          created_at: string
+          created_by: string | null
+          notes: string | null
+          player_id: string
+          representation_end: string | null
+          representation_start: string | null
+          status: Database["public"]["Enums"]["gbm_portfolio_status"]
+          updated_at: string
+          verification_note: string | null
+          verified_at: string | null
+          verified_by: string | null
+        }
+        Insert: {
+          assigned_staff_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          notes?: string | null
+          player_id: string
+          representation_end?: string | null
+          representation_start?: string | null
+          status?: Database["public"]["Enums"]["gbm_portfolio_status"]
+          updated_at?: string
+          verification_note?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Update: {
+          assigned_staff_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          notes?: string | null
+          player_id?: string
+          representation_end?: string | null
+          representation_start?: string | null
+          status?: Database["public"]["Enums"]["gbm_portfolio_status"]
+          updated_at?: string
+          verification_note?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gbm_portfolio_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: true
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gbm_portfolio_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: true
+            referencedRelation: "v_player_discovery"
+            referencedColumns: ["player_id"]
+          },
+          {
+            foreignKeyName: "gbm_portfolio_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: true
+            referencedRelation: "v_player_source_coverage"
+            referencedColumns: ["player_id"]
+          },
+          {
+            foreignKeyName: "gbm_portfolio_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: true
+            referencedRelation: "v_representation_opportunities"
+            referencedColumns: ["player_id"]
+          },
+        ]
+      }
       gbm_target_markets: {
         Row: {
           citizenship_target: boolean
@@ -1457,6 +1533,80 @@ export type Database = {
           },
         ]
       }
+      player_guardians: {
+        Row: {
+          consent_on_file: boolean
+          consent_reference: string | null
+          contact_email: string | null
+          contact_phone: string | null
+          created_at: string
+          created_by: string | null
+          guardian_name: string
+          id: string
+          notes: string | null
+          player_id: string
+          relationship: string | null
+          updated_at: string
+        }
+        Insert: {
+          consent_on_file?: boolean
+          consent_reference?: string | null
+          contact_email?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          created_by?: string | null
+          guardian_name: string
+          id?: string
+          notes?: string | null
+          player_id: string
+          relationship?: string | null
+          updated_at?: string
+        }
+        Update: {
+          consent_on_file?: boolean
+          consent_reference?: string | null
+          contact_email?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          created_by?: string | null
+          guardian_name?: string
+          id?: string
+          notes?: string | null
+          player_id?: string
+          relationship?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "player_guardians_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "player_guardians_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_discovery"
+            referencedColumns: ["player_id"]
+          },
+          {
+            foreignKeyName: "player_guardians_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_source_coverage"
+            referencedColumns: ["player_id"]
+          },
+          {
+            foreignKeyName: "player_guardians_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "v_representation_opportunities"
+            referencedColumns: ["player_id"]
+          },
+        ]
+      }
       player_injuries: {
         Row: {
           created_at: string
@@ -1589,6 +1739,105 @@ export type Database = {
             foreignKeyName: "player_links_player_id_fkey"
             columns: ["player_id"]
             isOneToOne: false
+            referencedRelation: "v_representation_opportunities"
+            referencedColumns: ["player_id"]
+          },
+        ]
+      }
+      player_live_status: {
+        Row: {
+          availability: string | null
+          check_count: number
+          last_checked_at: string | null
+          latest_assists: number | null
+          latest_goals: number | null
+          latest_match_at: string | null
+          latest_match_id: string | null
+          latest_minutes: number | null
+          latest_opponent: string | null
+          latest_result: string | null
+          latest_started: boolean | null
+          next_check_after: string | null
+          next_match_at: string | null
+          next_opponent: string | null
+          player_id: string
+          source: string | null
+          squad_status: string | null
+          updated_at: string
+        }
+        Insert: {
+          availability?: string | null
+          check_count?: number
+          last_checked_at?: string | null
+          latest_assists?: number | null
+          latest_goals?: number | null
+          latest_match_at?: string | null
+          latest_match_id?: string | null
+          latest_minutes?: number | null
+          latest_opponent?: string | null
+          latest_result?: string | null
+          latest_started?: boolean | null
+          next_check_after?: string | null
+          next_match_at?: string | null
+          next_opponent?: string | null
+          player_id: string
+          source?: string | null
+          squad_status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          availability?: string | null
+          check_count?: number
+          last_checked_at?: string | null
+          latest_assists?: number | null
+          latest_goals?: number | null
+          latest_match_at?: string | null
+          latest_match_id?: string | null
+          latest_minutes?: number | null
+          latest_opponent?: string | null
+          latest_result?: string | null
+          latest_started?: boolean | null
+          next_check_after?: string | null
+          next_match_at?: string | null
+          next_opponent?: string | null
+          player_id?: string
+          source?: string | null
+          squad_status?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "player_live_status_latest_match_id_fkey"
+            columns: ["latest_match_id"]
+            isOneToOne: false
+            referencedRelation: "matches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "player_live_status_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: true
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "player_live_status_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: true
+            referencedRelation: "v_player_discovery"
+            referencedColumns: ["player_id"]
+          },
+          {
+            foreignKeyName: "player_live_status_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: true
+            referencedRelation: "v_player_source_coverage"
+            referencedColumns: ["player_id"]
+          },
+          {
+            foreignKeyName: "player_live_status_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: true
             referencedRelation: "v_representation_opportunities"
             referencedColumns: ["player_id"]
           },
@@ -1786,6 +2035,83 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "data_providers"
             referencedColumns: ["code"]
+          },
+        ]
+      }
+      player_news: {
+        Row: {
+          category: string | null
+          confidence: number | null
+          content_hash: string
+          discovered_at: string
+          headline: string
+          id: string
+          language: string | null
+          player_id: string
+          published_at: string | null
+          source_name: string
+          source_type: string
+          source_url: string | null
+          summary: string | null
+        }
+        Insert: {
+          category?: string | null
+          confidence?: number | null
+          content_hash: string
+          discovered_at?: string
+          headline: string
+          id?: string
+          language?: string | null
+          player_id: string
+          published_at?: string | null
+          source_name: string
+          source_type: string
+          source_url?: string | null
+          summary?: string | null
+        }
+        Update: {
+          category?: string | null
+          confidence?: number | null
+          content_hash?: string
+          discovered_at?: string
+          headline?: string
+          id?: string
+          language?: string | null
+          player_id?: string
+          published_at?: string | null
+          source_name?: string
+          source_type?: string
+          source_url?: string | null
+          summary?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "player_news_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "player_news_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_discovery"
+            referencedColumns: ["player_id"]
+          },
+          {
+            foreignKeyName: "player_news_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_source_coverage"
+            referencedColumns: ["player_id"]
+          },
+          {
+            foreignKeyName: "player_news_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "v_representation_opportunities"
+            referencedColumns: ["player_id"]
           },
         ]
       }
@@ -2400,9 +2726,12 @@ export type Database = {
           first_name: string | null
           foot: Database["public"]["Enums"]["preferred_foot"]
           full_name: string
+          gbm_hero_image_url: string | null
+          gbm_portrait_url: string | null
           gbm_status: string
           height_cm: number | null
           id: string
+          image_credit: string | null
           image_url: string | null
           is_goalkeeper: boolean
           is_retired: boolean
@@ -2435,9 +2764,12 @@ export type Database = {
           first_name?: string | null
           foot?: Database["public"]["Enums"]["preferred_foot"]
           full_name: string
+          gbm_hero_image_url?: string | null
+          gbm_portrait_url?: string | null
           gbm_status?: string
           height_cm?: number | null
           id?: string
+          image_credit?: string | null
           image_url?: string | null
           is_goalkeeper?: boolean
           is_retired?: boolean
@@ -2470,9 +2802,12 @@ export type Database = {
           first_name?: string | null
           foot?: Database["public"]["Enums"]["preferred_foot"]
           full_name?: string
+          gbm_hero_image_url?: string | null
+          gbm_portrait_url?: string | null
           gbm_status?: string
           height_cm?: number | null
           id?: string
+          image_credit?: string | null
           image_url?: string | null
           is_goalkeeper?: boolean
           is_retired?: boolean
@@ -3415,6 +3750,77 @@ export type Database = {
         }
         Relationships: []
       }
+      v_gbm_portfolio: {
+        Row: {
+          age: number | null
+          assigned_staff_id: string | null
+          assigned_staff_name: string | null
+          availability: string | null
+          caches_refreshed_at: string | null
+          club_name: string | null
+          contract_expires_on: string | null
+          contract_months_remaining: number | null
+          date_of_birth: string | null
+          foot: Database["public"]["Enums"]["preferred_foot"] | null
+          full_name: string | null
+          height_cm: number | null
+          hero_image_url: string | null
+          is_minor: boolean | null
+          last_checked_at: string | null
+          latest_assists: number | null
+          latest_goals: number | null
+          latest_match_at: string | null
+          latest_minutes: number | null
+          latest_opponent: string | null
+          latest_result: string | null
+          league_name: string | null
+          market_value: number | null
+          nationality: string | null
+          news_last_7d: number | null
+          next_match_at: string | null
+          next_opponent: string | null
+          notes: string | null
+          player_id: string | null
+          portrait_url: string | null
+          primary_position: string | null
+          representation_end: string | null
+          representation_start: string | null
+          status: Database["public"]["Enums"]["gbm_portfolio_status"] | null
+          value_change_12m_pct: number | null
+          verification_note: string | null
+          verified_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gbm_portfolio_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: true
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gbm_portfolio_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: true
+            referencedRelation: "v_player_discovery"
+            referencedColumns: ["player_id"]
+          },
+          {
+            foreignKeyName: "gbm_portfolio_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: true
+            referencedRelation: "v_player_source_coverage"
+            referencedColumns: ["player_id"]
+          },
+          {
+            foreignKeyName: "gbm_portfolio_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: true
+            referencedRelation: "v_representation_opportunities"
+            referencedColumns: ["player_id"]
+          },
+        ]
+      }
       v_league_options: {
         Row: {
           league_id: string | null
@@ -3652,6 +4058,9 @@ export type Database = {
       }
     }
     Functions: {
+      gbm_can_manage_portfolio: { Args: never; Returns: boolean }
+      gbm_can_manage_staff: { Args: never; Returns: boolean }
+      gbm_can_view_guardian_data: { Args: never; Returns: boolean }
       gbm_can_write: { Args: never; Returns: boolean }
       gbm_compute_discovery_signals: {
         Args: never
@@ -3671,6 +4080,10 @@ export type Database = {
         Returns: undefined
       }
       gbm_refresh_player_caches: { Args: never; Returns: number }
+      gbm_role_rank: {
+        Args: { r: Database["public"]["Enums"]["gbm_role"] }
+        Returns: number
+      }
     }
     Enums: {
       competition_gender: "MALE" | "FEMALE" | "MIXED" | "UNKNOWN"
@@ -3701,7 +4114,19 @@ export type Database = {
         | "GBM_SCOUT"
         | "CONFLICTING"
         | "UNKNOWN"
-      gbm_role: "OWNER" | "ADMIN" | "SCOUT" | "ANALYST" | "VIEWER"
+      gbm_portfolio_status:
+        | "REPRESENTED"
+        | "IN_DISCUSSION"
+        | "FORMER"
+        | "REVIEW_QUEUE"
+      gbm_role:
+        | "OWNER"
+        | "ADMIN"
+        | "SCOUT"
+        | "ANALYST"
+        | "VIEWER"
+        | "EXECUTIVE_DIRECTOR"
+        | "PLAYER_SERVICE_SCOUT"
       preferred_foot: "LEFT" | "RIGHT" | "BOTH" | "UNKNOWN"
       recommendation:
         | "SIGN"
@@ -3891,7 +4316,21 @@ export const Constants = {
         "CONFLICTING",
         "UNKNOWN",
       ],
-      gbm_role: ["OWNER", "ADMIN", "SCOUT", "ANALYST", "VIEWER"],
+      gbm_portfolio_status: [
+        "REPRESENTED",
+        "IN_DISCUSSION",
+        "FORMER",
+        "REVIEW_QUEUE",
+      ],
+      gbm_role: [
+        "OWNER",
+        "ADMIN",
+        "SCOUT",
+        "ANALYST",
+        "VIEWER",
+        "EXECUTIVE_DIRECTOR",
+        "PLAYER_SERVICE_SCOUT",
+      ],
       preferred_foot: ["LEFT", "RIGHT", "BOTH", "UNKNOWN"],
       recommendation: [
         "SIGN",
