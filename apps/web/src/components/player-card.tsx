@@ -41,6 +41,16 @@ export interface PlayerCardData {
   gbm_opportunity?: number | null;
 }
 
+/**
+ * A value change worth interrupting the eye for. Small drifts are noise on a
+ * card; ±25% in a year is the kind of move an agent asks about.
+ */
+function bigMove(t: ReturnType<typeof trend>): boolean {
+  if (!t) return false;
+  const pct = Number.parseFloat(t.text.replace(/[^0-9.-]/g, ''));
+  return Number.isFinite(pct) && Math.abs(pct) >= 25;
+}
+
 function GbmBadge({ status }: { status: string | null }) {
   if (!status || status === 'NONE' || status === 'UNTRACKED') return null;
   return <span className="badge badge-gbm">GBM · {statusLabel(status)}</span>;
@@ -51,7 +61,6 @@ export function PlayerCard({ player, priority = false }: { player: PlayerCardDat
   const t = trend(player.value_change_12m_pct);
   const runway = contractRunway(player.contract_months_remaining);
   const flag = countryFlag(player.nationality);
-  const signal = signalLabel(player.top_signal_type);
 
   return (
     <Link
@@ -59,47 +68,60 @@ export function PlayerCard({ player, priority = false }: { player: PlayerCardDat
       className="card card-interactive block p-3"
       aria-label={player.full_name}
     >
+      {/* Recognition first. The face is the largest thing on the card, and the
+          rest is the four facts an agent actually reads at a glance: who,
+          where, what he costs, whether he fits. Signal names, minutes and
+          per-90s live on the profile — a card carrying fifteen fields is a
+          spreadsheet row with a photograph stuck to it. */}
       <div className="flex items-start gap-3">
-        <PlayerPhoto src={player.image_url ?? null} name={player.full_name} size={56} priority={priority} />
+        <PlayerPhoto src={player.image_url ?? null} name={player.full_name} size={72} priority={priority} />
         <div className="min-w-0 flex-1">
           <p className="font-semibold text-[0.9375rem] leading-snug truncate">{player.full_name}</p>
+          <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
+            {[
+              positionCode(player.primary_position),
+              player.age != null ? `${Math.floor(Number(player.age))}` : null,
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+          </p>
           <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--muted)' }}>
             {player.club_name ?? 'Club unknown'}
           </p>
-          <p className="text-xs mt-1 flex items-center gap-1.5" style={{ color: 'var(--muted)' }}>
-            <span className="data font-semibold" style={{ color: 'var(--fg)' }}>
-              {positionCode(player.primary_position)}
-            </span>
-            {player.age != null && <span className="data">{Math.floor(Number(player.age))}y</span>}
-            {flag && <span className="flag" aria-hidden="true">{flag}</span>}
-            <span className="truncate">{player.nationality ?? ''}</span>
-          </p>
+          {(flag || player.nationality) && (
+            <p className="text-xs mt-0.5 truncate flex items-center gap-1.5" style={{ color: 'var(--muted)' }}>
+              {flag && <span className="flag" aria-hidden="true">{flag}</span>}
+              <span className="truncate">{player.nationality ?? ''}</span>
+            </p>
+          )}
         </div>
       </div>
 
-      <div className="mt-3 pt-2.5 flex items-baseline justify-between gap-2" style={{ borderTop: '1px solid var(--border)' }}>
+      <div
+        className="mt-3 pt-2.5 flex items-baseline justify-between gap-2"
+        style={{ borderTop: '1px solid var(--border)' }}
+      >
         <span className="data text-[0.9375rem] font-semibold">
           {formatCurrency(player.market_value)}
         </span>
-        <span className="flex items-baseline gap-2">
-          {t && (
-            <span className={`data text-xs font-semibold ${t.className}`}>
+        {player.gbm_opportunity != null && (
+          <span className="opportunity text-xs" title="GBM opportunity score">
+            fit {Math.round(Number(player.gbm_opportunity))}
+          </span>
+        )}
+      </div>
+
+      {/* Only what changes a decision: that GBM represents him, or that his
+          contract is nearly up, or that his value has moved sharply. */}
+      {(runway?.urgent || (player.gbm_status && player.gbm_status !== 'NONE') || bigMove(t)) && (
+        <div className="mt-2 flex flex-wrap gap-1">
+          <GbmBadge status={player.gbm_status ?? null} />
+          {runway?.urgent && <span className="badge badge-attention">{runway.text}</span>}
+          {bigMove(t) && t && (
+            <span className={`data text-xs font-semibold self-center ${t.className}`}>
               <span aria-hidden="true">{t.glyph}</span> {t.text}
             </span>
           )}
-          {player.gbm_opportunity != null && (
-            <span className="opportunity text-xs" title="GBM opportunity score">
-              fit {Math.round(Number(player.gbm_opportunity))}
-            </span>
-          )}
-        </span>
-      </div>
-
-      {(signal || runway?.urgent || (player.gbm_status && player.gbm_status !== 'NONE')) && (
-        <div className="mt-2 flex flex-wrap gap-1">
-          <GbmBadge status={player.gbm_status ?? null} />
-          {signal && <span className="badge badge-neutral">{signal}</span>}
-          {runway?.urgent && <span className="badge badge-attention">{runway.text}</span>}
         </div>
       )}
     </Link>

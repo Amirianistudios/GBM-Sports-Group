@@ -102,6 +102,35 @@ export default async function PortfolioPage() {
         )}
       </div>
 
+      {rows.length > 0 && (
+        <section className="px-4 md:px-6 mt-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <Summary label="Represented" value={represented.length.toLocaleString('en-GB')} />
+            <Summary
+              label="Known portfolio value"
+              value={formatCurrency(
+                rows.reduce((sum, r) => sum + (r.market_value ?? 0), 0) || null,
+              )}
+              hint={`${rows.filter((r) => r.market_value !== null).length} of ${rows.length} valued`}
+            />
+            <Summary
+              label="Needing attention"
+              value={String(rows.filter((r) => alerts(r).length > 0).length)}
+              accent
+            />
+            <Summary
+              label="Contracts ≤6 mo"
+              value={String(
+                rows.filter(
+                  (r) => r.contract_months_remaining !== null && r.contract_months_remaining <= 6,
+                ).length,
+              )}
+              accent
+            />
+          </div>
+        </section>
+      )}
+
       {rows.length === 0 ? (
         <section className="px-4 md:px-6 pt-6">
           <div className="card p-8 max-w-xl mx-auto text-center">
@@ -127,6 +156,37 @@ export default async function PortfolioPage() {
       )}
       <div className="h-8" />
     </AppShell>
+  );
+}
+
+/** One headline number. The portfolio is small; these are read, not scanned. */
+function Summary({
+  label,
+  value,
+  hint,
+  accent,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  accent?: boolean;
+}) {
+  const isZero = value === '0';
+  return (
+    <div className="card p-4">
+      <p
+        className="data text-2xl font-bold tracking-tight"
+        style={accent && !isZero ? { color: 'var(--color-gbm)' } : undefined}
+      >
+        {value}
+      </p>
+      <p className="eyebrow mt-1">{label}</p>
+      {hint && (
+        <p className="text-[0.6875rem] mt-0.5" style={{ color: 'var(--muted)' }}>
+          {hint}
+        </p>
+      )}
+    </div>
   );
 }
 
