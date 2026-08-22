@@ -11,7 +11,7 @@ import { NAV_GROUPS, isActivePath } from './side-nav';
  * onto a phone. 56px targets; safe-area aware.
  */
 const PRIMARY = [
-  { href: '/', label: 'Brief', icon: HomeIcon },
+  { href: '/', label: 'Dashboard', icon: HomeIcon },
   { href: '/discover', label: 'Discover', icon: RadarIcon },
   { href: '/players', label: 'Players', icon: PlayersIcon },
   { href: '/watchlists', label: 'Watch', icon: WatchIcon },
