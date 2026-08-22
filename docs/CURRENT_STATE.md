@@ -433,6 +433,70 @@ paused assignment, which is resolved in the dashboard (Deployments → newest
 `main` build → Promote to Production, and Resume on any paused-assignment
 notice) and nowhere else.
 
+## Execution phase — the agency's own layer (2026-08-22)
+
+**Three real roles, enforced by the database.** `gbm_role` gained
+`EXECUTIVE_DIRECTOR` and `PLAYER_SERVICE_SCOUT`; the legacy values remain and
+map onto them (`ADMIN` ranks with the executive director, `SCOUT`/`ANALYST`
+with the scout), so no existing membership broke. Permission predicates sit on
+top — `gbm_can_manage_portfolio`, `gbm_can_manage_staff`,
+`gbm_can_view_guardian_data` — and every sensitive surface is gated by RLS
+rather than by hiding a component. Verified live: the scout is redirected away
+from Add Player, reads **zero** guardian rows where two exist, and is refused
+`42501` on write.
+
+Accounts: Mame Amirov (OWNER), Giorgi Amoev Baravi (EXECUTIVE_DIRECTOR),
+Antoni Amirian (PLAYER_SERVICE_SCOUT). Created through GoTrue signup so the
+passwords were hashed by Auth and never touched SQL, then confirmed and given
+their roles by admin statement. No password appears in this repository, in
+Vercel, in a fixture or in a log.
+
+**The portfolio is GBM's own record.** `gbm_portfolio` is deliberately separate
+from `representation_records`: those are provider assertions carrying
+provenance, this is the agency's truth, and an external source omitting a
+player never removes a row here. Seeded from what the database already proved —
+two players whose current representation record names the agency, each entry
+carrying the provider, retrieval date and source URL that asserted it:
+Giorgi Kavlashvili (Union Saint-Gilloise) and Giorgi Kutsia (NK Veres Rivne).
+
+Five names supplied by the owner — Fallou Faye, Saba Gegiadze, Saba Asanidze,
+Enzo Bagabo, Matthijs Boonen — are **not present in the database at all**, by
+exact or fuzzy match. They are not invented into existence; Add Player is the
+route for them, with the details only GBM holds.
+
+**Minors.** `player_guardians` holds guardian name, relationship, contact and
+consent reference, readable and writable only by owner and executive director.
+The Add Player form reveals the guardian section from the entered date of
+birth — convenience; the protection is the policy.
+
+**Hourly intelligence.** `.github/workflows/hourly-intelligence-refresh.yml`
+runs at :10 past every hour on GitHub Actions — never Vercel. Hourly is the
+wake interval, not the request rate: each tracked player carries
+`next_check_after`, so quiet players drift towards a daily check while a player
+with a fixture in the window is checked hourly. Proven in production across
+three runs — first run checked 2 players and updated 2 in 3.1s with zero
+errors; the second woke, found both still inside their interval and made
+**zero** provider calls (`skipped_inside_interval: 2`); the third derived a
+genuine sourced news item (Kavlashvili's 2025-03-21 move, `published_at`
+distinct from `discovered_at`). Scope is portfolio plus high-priority
+watchlist only; the 7,835-player discovery universe stays weekly, and all three
+ingestion workflows now share the `gbm-ingestion` concurrency group.
+
+**A silent failure caught by testing.** Add Player saved a player but lost the
+market value and contract typed alongside him: `market_values` and `contracts`
+were writable only by the service role, RLS rejected both inserts, and the
+action ignored their result. Migration 0022 grants the write narrowly —
+portfolio managers may write rows attributed to `GBM_INTERNAL` only, so a
+provider's assertion can never be edited or forged through the application —
+and the action now reports anything that did not save.
+
+**Known gap, stated rather than hidden.** `matches` and `player_match_stats`
+hold zero rows: the Transfermarkt import aggregates appearances into season
+totals and never writes per-fixture rows, and no per-match provider is
+connected. Latest-match therefore resolves to null and the portfolio card says
+so. When a match source is connected the hourly job fills those fields
+unchanged.
+
 ## Provider research
 
 Nine external sources were assessed on 2026-08-19 — see
