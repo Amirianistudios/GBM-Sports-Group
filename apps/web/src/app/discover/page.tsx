@@ -36,17 +36,21 @@ export default async function DiscoverPage({
     return q;
   }
 
+  // Each section over-fetches so that, after removing everyone shown above it,
+  // it can still fill its own slots. Without this the page repeats itself: the
+  // opportunity model rewards youth and low valuations, so the best players
+  // overall are largely the same names as the best young, inexpensive ones.
   const [top, emerging, contractWindow, newest] = await Promise.all([
     base(false).limit(12),
     base(false)
       .gte('date_of_birth', dobCutoff(24))
       .or('cached_market_value.lte.5000000,cached_market_value.is.null')
-      .limit(12),
+      .limit(36),
     base(false)
       .gte('cached_contract_expires', todayIso())
       .lte('cached_contract_expires', monthsAhead(18))
       .gte('date_of_birth', dobCutoff(30))
-      .limit(8),
+      .limit(32),
     supabase
       .from('players')
       .select(cachedPlayerColumns(true))
@@ -59,10 +63,32 @@ export default async function DiscoverPage({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ((rows.data ?? []) as any[]).map(fromCachedPlayer);
 
-  const topCards = cards(top);
-  const emergingCards = cards(emerging);
-  const contractRows = cards(contractWindow);
-  const newestRows = cards(newest);
+  // A failed query must not read as "no such players": say so, and say which.
+  for (const [name, r] of [
+    ['top', top], ['emerging', emerging], ['contract', contractWindow], ['newest', newest],
+  ] as const) {
+    if (r.error) console.error(`[discover] ${name} query failed — ${r.error.message}`);
+  }
+
+  const shown = new Set<string>();
+  /** Takes the first `n` players this page has not already displayed. */
+  const fresh = (rows: PlayerCardData[], n: number): PlayerCardData[] => {
+    const picked: PlayerCardData[] = [];
+    for (const p of rows) {
+      if (shown.has(p.player_id)) continue;
+      shown.add(p.player_id);
+      picked.push(p);
+      if (picked.length === n) break;
+    }
+    return picked;
+  };
+
+  const topCards = fresh(cards(top), 12);
+  const emergingCards = fresh(cards(emerging), 12);
+  const contractRows = fresh(cards(contractWindow), 8);
+  // "New in GBM markets" is ordered by arrival, not by fit — a player already
+  // shown above is still news, so this section keeps its own list.
+  const newestRows = cards(newest).slice(0, 8);
 
   return (
     <AppShell eyebrow="Intelligence" title="Discover">
@@ -101,7 +127,7 @@ export default async function DiscoverPage({
 
       <Block
         title="Emerging talent"
-        subtitle="Under 24, valued €5m or less — the acquisition profile"
+        subtitle="More under-24s at €5m or less, beyond those above"
       >
         {emergingCards.length === 0 ? (
           <EmptyNote />
@@ -114,7 +140,7 @@ export default async function DiscoverPage({
         )}
       </Block>
 
-      <Block title="Contract window closing" subtitle="Under 30, inside the final 18 months">
+      <Block title="Contract window closing" subtitle="Further under-30s inside the final 18 months">
         <div className="surface mx-4 md:mx-6 overflow-hidden">
           {contractRows.length === 0 ? (
             <EmptyNote inset />
