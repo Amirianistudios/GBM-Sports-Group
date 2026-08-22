@@ -1,6 +1,15 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "ignoreCommand": "[ \"$VERCEL_ENV\" != \"production\" ]",
+  "_comment": [
+    "ignoreCommand decides whether Vercel builds at all: exit 0 skips, exit 1 builds.",
+    "It used to read `[ \"$VERCEL_ENV\" != \"production\" ]`, which skips whenever",
+    "VERCEL_ENV is anything other than the exact string 'production' — including",
+    "empty. A skip is silent and looks identical to a build that never started, so",
+    "the rule now fails towards deploying: only a confirmed preview is skipped, and",
+    "anything unrecognised builds. The echo puts the decision inputs in the build",
+    "log, so 'why did production not update' is answerable from the log itself."
+  ],
+  "ignoreCommand": "echo \"ignore-step: VERCEL_ENV=$VERCEL_ENV ref=$VERCEL_GIT_COMMIT_REF sha=$VERCEL_GIT_COMMIT_SHA\"; if [ \"$VERCEL_ENV\" = \"preview\" ]; then echo 'preview — skipping build'; exit 0; fi; echo 'not a preview — building'; exit 1",
   "github": {
     "silent": true
   }
