@@ -21,6 +21,12 @@
 name: hourly-intelligence-refresh
 
 on:
+  # The GitHub App that opens these pull requests cannot call workflow_dispatch,
+  # so touching a marker file on main is how a run is started by hand. Same
+  # mechanism as data-import-trigger.yml.
+  push:
+    branches: [main]
+    paths: ['.github/intelligence-trigger']
   schedule:
     # Ten past the hour: clear of the busiest cron minute, and clear of the
     # weekly dataset refresh at 03:00.
