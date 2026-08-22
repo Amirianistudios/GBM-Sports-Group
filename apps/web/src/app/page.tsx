@@ -3,7 +3,6 @@ import { createClient } from '@/lib/supabase/server';
 import { AppShell } from '@/components/app-shell';
 import { PlayerPhoto } from '@/components/player-photo';
 import { cachedPlayerColumns, fromCachedPlayer, monthsAhead, todayIso } from '@/lib/card-data';
-import { ALL_TARGET_COUNTRIES } from '@/lib/markets';
 import { countryFlag } from '@/lib/flags';
 import { formatCurrency, positionCode, trend } from '@/lib/format';
 
