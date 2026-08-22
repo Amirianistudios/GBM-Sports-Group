@@ -139,3 +139,42 @@ Data:          GitHub migrations → Supabase        (weekly ingestion via Actio
 
 GitHub and Supabase hold everything important. Vercel builds what lands on
 `main`, serves it, and does nothing else.
+
+## Why `vercel.json` carries no explanatory key (2026-08-22)
+
+Six consecutive production deployments failed — `7088909`, `d4b62f4`,
+`269567c`, `99ddcc7`, `c799e4d`, `80bf759` — and the cause was in this
+repository the whole time, invisible to every gate we run.
+
+`vercel.json` had gained a `_comment` array holding the reasoning behind the
+ignore rule, because JSON has no comment syntax. Vercel's published schema
+(`https://openapi.vercel.sh/vercel.json`) sets **`additionalProperties: false`**
+at the top level, and `_comment` is not among its forty permitted keys, so
+every deployment was rejected before the build began. Local builds could not
+catch it: a local `next build` never reads `vercel.json`.
+
+The last green deployment, `4b3d31c`, predates the key. `b66a512` — merged as
+`4996555` — introduced it. That is the regression window exactly.
+
+`apps/web/src/lib/vercel-config.test.ts` now fails the CI gate on any key
+outside a small allowlist, so the same mistake cannot reach `main` again.
+
+### The ignore rule, explained here instead
+
+```
+if ref == main            -> exit 1  (build)
+if VERCEL_ENV == preview  -> exit 0  (skip)
+otherwise                 -> exit 1  (build)
+```
+
+Branch-first, on purpose. The original rule was `[ "$VERCEL_ENV" !=
+"production" ]`, which skips whenever that variable is anything but the exact
+string — an empty value skips, and if the project's production branch were
+ever not `main`, a push to main would arrive as a preview and be skipped in
+silence. A skipped build is indistinguishable from one that never started, so
+production would stop moving with nothing to see. Failing towards a wasted
+build is the cheaper mistake. The step echoes `VERCEL_ENV`, the ref and the
+sha, so the next failure is readable from the build log.
+
+`github.silent` is `false` deliberately: Vercel's commit statuses are the only
+outside-in evidence of what it did with a push to `main`.
