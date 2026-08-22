@@ -142,27 +142,36 @@ export async function addPlayer(
   }
 
   // A recorded market value is a fact with a date, so it goes to market_values
-  // where every other valuation lives, not into a loose column.
+  // where every other valuation lives, not into a loose column. Attributed to
+  // GBM_INTERNAL: this is the agency's own number, never a provider's.
+  //
+  // These writes are checked. An earlier version ignored their result, and RLS
+  // rejected both silently — the player saved, the contract vanished, and
+  // nothing said so. A failure the user cannot see is worse than an error.
+  const problems: string[] = [];
+
   const value = euros(form, 'market_value_eur');
   if (value !== null) {
-    await supabase.from('market_values').insert({
+    const { error } = await supabase.from('market_values').insert({
       player_id: playerId,
       value_amount: value,
       currency: 'EUR',
       valued_on: new Date().toISOString().slice(0, 10),
       provider_code: 'GBM_INTERNAL',
     });
+    if (error) problems.push(`market value (${error.message})`);
   }
 
   const contractEnd = text(form, 'contract_expires_on');
   if (contractEnd) {
-    await supabase.from('contracts').insert({
+    const { error } = await supabase.from('contracts').insert({
       player_id: playerId,
       club_id: club?.id ?? null,
       expires_on: contractEnd,
       status: 'ACTIVE',
       provider_code: 'GBM_INTERNAL',
     });
+    if (error) problems.push(`contract (${error.message})`);
   }
 
   // Guardian details only exist for minors, and only management may write them.
@@ -177,13 +186,20 @@ export async function addPlayer(
       consent_reference: text(form, 'consent_reference'),
       consent_on_file: form.get('consent_on_file') === 'on',
     });
-    if (guardianError) {
-      return {
-        error: `Player added, but the guardian record failed — ${guardianError.message}`,
-      };
-    }
+    if (guardianError) problems.push(`guardian details (${guardianError.message})`);
   }
 
   revalidatePath('/portfolio');
+
+  // The player exists either way; say plainly what did not save rather than
+  // redirecting to a profile that quietly lacks half of what was typed.
+  if (problems.length > 0) {
+    return {
+      error:
+        `${fullName} was added, but these could not be saved: ${problems.join('; ')}. ` +
+        `Open the player and add them again.`,
+    };
+  }
+
   redirect(`/players/${playerId}`);
 }
