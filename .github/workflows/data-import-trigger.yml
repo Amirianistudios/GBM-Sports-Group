@@ -15,7 +15,7 @@ on:
     paths: ['.github/import-trigger']
 
 concurrency:
-  group: data-refresh
+  group: gbm-ingestion
   cancel-in-progress: false
 
 defaults:
