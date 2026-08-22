@@ -19,6 +19,7 @@ import { resolveThroughReep } from './reep/resolve.js';
 import { runQualityChecks } from './quality.js';
 import { runPreflight } from './preflight.js';
 import { verifyEndToEnd } from './verify.js';
+import { runHourlyIntelligence } from './intelligence/hourly.js';
 import { IngestionRun } from './run.js';
 import { admin } from './supabase.js';
 
@@ -208,7 +209,22 @@ async function cmdUpdate(): Promise<void> {
   await cmdSignals();
 }
 
+async function cmdHourly(): Promise<void> {
+  log('Hourly intelligence — portfolio and priority players');
+  const result = await runHourlyIntelligence({
+    force: flag('force'),
+    maxPlayers: option('max-players') ?? 60,
+    log,
+  });
+  log('');
+  log(
+    `Checked ${result.checked}, skipped ${result.skipped} inside their interval, ` +
+      `${result.updated} updated, ${result.news} new items.`,
+  );
+}
+
 const COMMANDS: Record<string, () => Promise<void>> = {
+  hourly: cmdHourly,
   download: cmdDownload,
   import: cmdImport,
   update: cmdUpdate,

@@ -42,7 +42,9 @@ on:
         default: false
 
 concurrency:
-  group: data-refresh
+  # Shared with hourly-intelligence-refresh: both write the same player tables,
+  # and a long import must never run underneath an hourly refresh.
+  group: gbm-ingestion
   cancel-in-progress: false
 
 defaults:

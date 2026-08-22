@@ -18,6 +18,7 @@
     "reep:resolve": "tsx services/ingestion/src/cli.ts resolve",
     "quality:check": "tsx services/ingestion/src/cli.ts quality",
     "signals:compute": "tsx services/ingestion/src/cli.ts signals",
+    "intel:hourly": "tsx services/ingestion/src/cli.ts hourly",
     "ingest:status": "tsx services/ingestion/src/cli.ts status",
     "ingest:preflight": "tsx services/ingestion/src/cli.ts preflight",
     "ingest:verify": "tsx services/ingestion/src/cli.ts verify",

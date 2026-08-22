@@ -1,6 +1,18 @@
+import { createClient } from '@/lib/supabase/server';
 import { AppShell } from '@/components/app-shell';
 
 export const dynamic = 'force-dynamic';
+
+/** How a stored role reads on screen. */
+const ROLE_LABEL: Record<string, string> = {
+  OWNER: 'Owner · Licensed Football Agent',
+  EXECUTIVE_DIRECTOR: 'Executive Director',
+  PLAYER_SERVICE_SCOUT: 'Player Service · Scout',
+  ADMIN: 'Administrator',
+  SCOUT: 'Scout',
+  ANALYST: 'Analyst',
+  VIEWER: 'Viewer',
+};
 
 /**
  * GBM SPORTS GROUP — the organization behind the platform.
@@ -26,7 +38,23 @@ const TEAM = [
   },
 ] as const;
 
-export default function TeamPage() {
+export default async function TeamPage() {
+  // The roles shown are the roles the database actually enforces, read through
+  // the signed-in user's own client. A page that hard-codes them would drift
+  // from the permissions silently.
+  const supabase = await createClient();
+  const { data: members } = await supabase
+    .from('organization_members')
+    .select('role, profiles:user_id(full_name, email)');
+
+  const roleByName = new Map<string, string>();
+  for (const m of members ?? []) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const row = m as any;
+    const name = row.profiles?.full_name as string | undefined;
+    if (name) roleByName.set(name, row.role as string);
+  }
+
   return (
     <AppShell eyebrow="Organization" title="Team">
       <section className="px-4 md:px-6 pt-4">
@@ -60,15 +88,22 @@ export default function TeamPage() {
               </div>
               <h3 className="font-bold text-[1.0625rem] tracking-tight">{m.name}</h3>
               <p className="text-sm font-semibold mt-0.5" style={{ color: 'var(--color-verified-2)' }}>
-                {m.role}
+                {roleByName.has(m.name) ? ROLE_LABEL[roleByName.get(m.name)!] ?? m.role : m.role}
               </p>
               <p className="text-xs mt-2 leading-relaxed" style={{ color: 'var(--muted)' }}>{m.focus}</p>
+              <p className="eyebrow mt-3">
+                {roleByName.has(m.name) ? 'Account active' : 'No account yet'}
+              </p>
             </div>
           ))}
         </div>
 
-        <p className="text-xs mt-4 leading-relaxed" style={{ color: 'var(--muted)' }}>
-          Team accounts, roles and administration are managed in the next phase.
+        <p className="text-xs mt-4 leading-relaxed max-w-2xl" style={{ color: 'var(--muted)' }}>
+          Roles shown here are the roles the database enforces. The owner manages the portfolio,
+          staff and guardian information for minors; the executive director manages the portfolio
+          and scouting; player service and scouting covers discovery, watchlists, reports and
+          notes. Guardian details for under-18s are restricted by database policy, not by hiding
+          them on screen.
         </p>
       </section>
       <div className="h-8" />

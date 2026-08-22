@@ -34,6 +34,7 @@ export const NAV_GROUPS: Array<{ heading: string; items: Array<{ href: string; l
     items: [
       { href: '/team', label: 'Team' },
       { href: '/data', label: 'Data Providers' },
+      { href: '/data/sync', label: 'Sync Status' },
       { href: '/settings', label: 'Settings' },
     ],
   },
