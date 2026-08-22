@@ -4031,6 +4031,12 @@ export type Database = {
           },
         ]
       }
+      v_position_options: {
+        Row: {
+          position_name: string | null
+        }
+        Relationships: []
+      }
       v_representation_opportunities: {
         Row: {
           age: number | null

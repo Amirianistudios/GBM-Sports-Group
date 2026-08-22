@@ -118,7 +118,8 @@ export default async function PlayersPage({ searchParams }: { searchParams: Sear
   const [{ data, error }, { data: positions }, { data: nationalities }, { data: leagueRows }] =
     await Promise.all([
       query.range(from, from + PAGE_SIZE),
-      supabase.from('players').select('primary_position').not('primary_position', 'is', null),
+      // A dropdown of ~15 entries, not 7,835 rows de-duplicated in JavaScript.
+      supabase.from('v_position_options').select('position_name'),
       supabase.from('countries').select('name').order('name'),
       supabase.from('v_league_options').select('league_name').order('league_name'),
     ]);
@@ -132,9 +133,8 @@ export default async function PlayersPage({ searchParams }: { searchParams: Sear
   ).slice(0, PAGE_SIZE);
   const view = sp.view === 'grid' ? 'grid' : 'list';
 
-  const positionOptions = Array.from(
-    new Set((positions ?? []).map((p) => p.primary_position).filter(Boolean) as string[]),
-  ).sort();
+  // Already distinct and ordered by the view.
+  const positionOptions = ((positions ?? []).map((p) => p.position_name).filter(Boolean) as string[]);
   const leagueOptions = ((leagueRows ?? []).map((l) => l.league_name).filter(Boolean) as string[]);
 
   const makeHref = (p: number) => {
