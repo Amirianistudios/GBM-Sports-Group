@@ -138,7 +138,13 @@ export function PlayerListRow({ player }: { player: PlayerCardData }) {
 
   return (
     <Link href={`/players/${player.player_id}`} className="sheet-row">
-      <div className="flex items-center gap-3">
+      {/* On a phone the money column drops to its own line rather than
+          competing with the name for width. Keeping them side by side left
+          roughly 150px for the name, which turned "Yuriy-Volodymyr Gereta"
+          into "Yuriy-Volody…" — the one field a scout scans by. Letting the
+          name wrap instead cost three lines a row; moving the numbers down
+          costs one and keeps every row the same height. */}
+      <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap">
         <PlayerPhoto src={player.image_url ?? null} name={player.full_name} size={40} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
@@ -171,9 +177,9 @@ export function PlayerListRow({ player }: { player: PlayerCardData }) {
             {signal && <span className="badge badge-neutral hidden md:inline-flex">{signal}</span>}
           </div>
         </div>
-        <div className="text-right shrink-0">
+        <div className="shrink-0 w-full sm:w-auto text-right flex items-baseline justify-between gap-2 sm:block">
           <p className="data text-[0.9375rem] font-semibold">{formatCurrency(player.market_value)}</p>
-          <p className="text-[0.6875rem] mt-0.5 flex items-center justify-end gap-1.5">
+          <p className="text-[0.6875rem] sm:mt-0.5 flex items-center justify-end gap-1.5">
             {t && (
               <span className={`data font-semibold ${t.className}`}>
                 <span aria-hidden="true">{t.glyph}</span> {t.text}

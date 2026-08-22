@@ -157,6 +157,19 @@ constraints and hardening the live one has.
 | `20260819130200_harden_views_and_functions` | Closes the anonymous read path (below) |
 | `20260820120000_season_stats_idempotency` | NULLS NOT DISTINCT natural key for player_season_stats (applied to hosted 2026-08-20) |
 | `20260820150000_discovery_view_and_links` | `v_player_discovery`, representation-view fan-out fix, `player_links`, pipeline watchlist statuses (applied to hosted 2026-08-20) |
+| `20260821120000_discovery_view_performance` | Cached player columns and indexes behind the discovery view |
+| `20260822090000_representation_view_performance` | Representation view cost, identity columns |
+| `20260823100000_gbm_opportunity_model` | `gbm_target_markets`, cached opportunity columns, `GBM_OPPORTUNITY` |
+| `20260823110000_cache_refresh_where_clause` | Corrects which rows the cache refresh touches |
+| `20260823120000_opportunity_score_rescale` | Ends score saturation — 237 players were tied at 100 |
+| `20260824100000_gbm_portfolio_and_intelligence` | Role helpers, `gbm_portfolio`, `player_guardians`, `player_news`, `player_live_status`, `v_gbm_portfolio` |
+| `20260824110000_gbm_internal_facts_writable` | Narrow `GBM_INTERNAL`-only write grant on values and contracts |
+| `20260825100000_search_and_filter_performance` | `v_position_options`, trigram index for wildcard search |
+| `20260825110000_write_policies_stop_taxing_reads` | Splits the `FOR ALL` policies off the read path (below) |
+| `20260825120000_rls_role_lookups_hoisted_to_initplan` | Wraps every role lookup so Postgres evaluates it once per statement (below) |
+
+Verified against `supabase.list_migrations` on 2026-08-25: the hosted project
+reports the same set, in the same order, with nothing applied that has no file.
 
 ## Security
 
@@ -496,6 +509,68 @@ totals and never writes per-fixture rows, and no per-match provider is
 connected. Latest-match therefore resolves to null and the portfolio card says
 so. When a match source is connected the hourly job fills those fields
 unchanged.
+
+## Reads stopped paying for the permission model (2026-08-25)
+
+**The regression.** Migration 0021 added `players_manage` and `clubs_manage` as
+`FOR ALL` policies. `FOR ALL` is not "for writes" — it covers `SELECT` too, so
+every read of `players` began calling `gbm_can_manage_portfolio()` once per row,
+and that function queries `organization_members`. Nothing in CI could see it:
+the results were correct, the permissions were correct, and a local database is
+too small for anyone to notice. It was found by running `EXPLAIN ANALYZE` on
+production *as an authenticated user* rather than as the service role.
+
+| stage | plan filter | execution |
+|---|---|---|
+| service role, no RLS | — | 1.682 ms |
+| authenticated, before | `(gbm_can_manage_portfolio() OR gbm_is_member())` | **1546.132 ms** |
+| after 0024 splits the write policies | `gbm_is_member()` | 115.905 ms |
+| after 0025 hoists the read policy | `(InitPlan 1).col1` | **2.385 ms** |
+
+**Why the last step works.** `gbm_is_member()` and its siblings are `STABLE
+SECURITY DEFINER` functions taking no arguments and reading nothing from the
+row. Written bare, Postgres treats the call as part of the row filter and
+evaluates it per row; written `(select gbm_is_member())` it becomes an InitPlan,
+evaluated once per statement. The cost stops scaling with row count altogether,
+so this does not decay as the player universe grows.
+
+0025 applies that across the whole schema — roughly sixty policies — rather than
+only the two tables where the problem surfaced. Supabase's performance advisor
+flags fourteen of these as `auth_rls_initplan`, but it only recognises
+`auth.<fn>()` and `current_setting()`; it cannot see the custom role helpers,
+which are the expensive ones, since `auth.uid()` reads a GUC while
+`gbm_is_member()` runs a query.
+
+**Access is unchanged, and that was verified rather than assumed.** Per-role
+visible row counts across all 54 policied tables, for OWNER, EXECUTIVE_DIRECTOR
+and PLAYER_SERVICE_SCOUT, are byte-identical before and after. Four policies
+needed their predicate restructured, so each was additionally checked with a
+truth table over all 8 role states × 4 row states — 0 mismatches. And 0025 ends
+with a guard that fails the migration if any policy is left evaluating a role
+lookup per row; it earned itself immediately by catching six write policies this
+change would otherwise have missed.
+
+**One thing deliberately left undecided.** Four `FOR ALL` policies granted reads
+their sibling read policy did not: an OWNER could read another author's private
+note, and any writer could read a draft report's sections. Splitting those
+policies would have silently revoked those grants, so each is preserved
+explicitly in the read policy — visible and reviewable instead of incidental. A
+performance migration should change cost, not who can see what. **Whether those
+four grants are wanted is an open question for the owner**, and closing them is
+a one-line change to each read policy.
+
+**Live effect**, measured against production as a signed-in owner, median of
+five requests. `/login` is static and needs no database, so its 0.166 s TTFB is
+the network-and-TLS floor from the measuring client; the difference above it is
+the real server cost, around 140 ms per route.
+
+| route | total before | total after | median TTFB after |
+|---|---|---|---|
+| `/` | 2.86 s | ~0.68 s | 0.305 s |
+| `/players` | 2.38 s | ~0.67 s | 0.316 s |
+| `/discover` | 2.75 s | ~0.58 s | 0.301 s |
+| `/players?q=…` | 2.51 s | ~0.57 s | 0.307 s |
+| `/portfolio` | ~0.6 s | ~0.56 s | 0.296 s |
 
 ## Provider research
 
