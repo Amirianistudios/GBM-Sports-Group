@@ -1,24 +1,5 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "_comment": [
-    "ignoreCommand decides whether Vercel builds at all: exit 0 skips, exit 1 builds.",
-    "",
-    "It began as `[ \"$VERCEL_ENV\" != \"production\" ]`, which skips whenever",
-    "VERCEL_ENV is anything but that exact string. That is unsafe twice over: an",
-    "empty value skips, and — the case that actually bit us — if the project's",
-    "production branch is ever not `main`, a push to main arrives as a PREVIEW and",
-    "is skipped silently. A skipped build is indistinguishable from one that never",
-    "started, so production stops moving with nothing to see.",
-    "",
-    "The rule is now branch-first: main always builds, whatever Vercel calls the",
-    "environment. Only a preview of some other branch is skipped. Everything else",
-    "builds, because failing towards a wasted build beats failing towards a",
-    "production that silently stops updating. The echo puts the decision inputs in",
-    "the build log so the next failure is readable.",
-    "",
-    "github.silent is deliberately false: Vercel's commit statuses are the only",
-    "outside-in evidence of what it did with a push to main."
-  ],
   "ignoreCommand": "echo \"ignore-step: VERCEL_ENV=$VERCEL_ENV ref=$VERCEL_GIT_COMMIT_REF sha=$VERCEL_GIT_COMMIT_SHA\"; if [ \"$VERCEL_GIT_COMMIT_REF\" = \"main\" ]; then echo 'main — building'; exit 1; fi; if [ \"$VERCEL_ENV\" = \"preview\" ]; then echo 'preview of a non-main branch — skipping'; exit 0; fi; echo 'unrecognised context — building'; exit 1",
   "github": {
     "silent": false
