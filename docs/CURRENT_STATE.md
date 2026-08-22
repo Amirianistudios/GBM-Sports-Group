@@ -405,13 +405,33 @@ commit was live. Every response now carries `x-gbm-release: <commit sha>`
 answers that question directly and any future drift is one command away from
 being caught.
 
-Verified on 2026-08-22 after automatic assignment resumed: the domain served
-`x-gbm-release: 4b3d31c` — byte-for-byte `main`'s head — and all seventeen
-authenticated routes returned 200 with their Sprint 1.5 content markers
-present (Morning Brief sections, Discover's opportunity groups, the profile
-identity hero and GBM Intelligence Summary, portraits through
-`/_next/image`, the graphite theme's `--bg: var(--color-ink)` default).
-Unauthenticated `/login` renders; unauthenticated `/players` redirects.
+Verified on 2026-08-22: the domain served `x-gbm-release: 4b3d31c` — then
+`main`'s head — and all seventeen authenticated routes returned 200 with
+their Sprint 1.5 content markers present (Morning Brief sections, Discover's
+opportunity groups, the profile identity hero and GBM Intelligence Summary,
+portraits through `/_next/image`, the graphite theme's `--bg:
+var(--color-ink)` default). Unauthenticated `/login` renders;
+unauthenticated `/players` redirects.
+
+**Read the release header from a dynamic route.** `/login` is statically
+prerendered, so Vercel's edge serves it from cache and its `x-gbm-release`
+reports whenever that copy was cached (`age: 1390`, `x-vercel-cache: HIT`),
+not what is deployed now. `/api/health` and any authenticated page are
+`force-dynamic` and answer `x-vercel-cache: MISS` — those tell the truth.
+
+**Still open at the end of Sprint 1.5.** A later merge (`9d83b6a`) did not
+reach the domain: 45 minutes on, uncached dynamic routes still reported
+`4b3d31c`. Two causes fit, and they cannot be told apart from outside
+Vercel — either the production build never ran, or it ran and the domain did
+not take it because automatic assignment is still paused from the earlier
+manual promotion. The first is now covered: `ignoreCommand` used to skip
+whenever `VERCEL_ENV` was anything but the exact string `production`, empty
+included, and a skipped build looks identical to one that never started, so
+the rule now skips only a confirmed preview and echoes its inputs into the
+build log. If production still does not move after that, the cause is the
+paused assignment, which is resolved in the dashboard (Deployments → newest
+`main` build → Promote to Production, and Resume on any paused-assignment
+notice) and nowhere else.
 
 ## Provider research
 
