@@ -1,9 +1,11 @@
 import { AppShell } from '@/components/app-shell';
 import { SkeletonFeedSection } from '@/components/skeleton';
+import { getTranslator } from '@/lib/i18n';
 
-export default function Loading() {
+export default async function Loading() {
+  const { t } = await getTranslator();
   return (
-    <AppShell eyebrow="Intelligence" title="Market Radar">
+    <AppShell eyebrow={t('nav.group.intelligence')} title={t('nav.radar')}>
       <SkeletonFeedSection title="Rapid value growth" />
       <SkeletonFeedSection title="U21 risers" />
       <SkeletonFeedSection title="Contract window closing" />

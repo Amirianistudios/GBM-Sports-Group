@@ -572,6 +572,52 @@ the real server cost, around 140 ms per route.
 | `/players?q=…` | 2.51 s | ~0.57 s | 0.307 s |
 | `/portfolio` | ~0.6 s | ~0.56 s | 0.296 s |
 
+## Four languages, and a way to keep the portfolio right (2026-08-23)
+
+**English, Russian, Dutch and Georgian**, chosen in Settings and remembered in
+a `gbm-locale` cookie. No dependency was added: `apps/web` must install
+standalone whichever Root Directory Vercel uses, and four dictionaries with a
+cookie and an interpolator are the whole feature. The locale is a cookie rather
+than a `/ru/` URL segment because this is a private authenticated tool — nothing
+is indexed, nobody shares a Russian deep link, and a URL scheme would rewrite
+every internal href for a preference that belongs to a person, not a page.
+
+`en.ts` defines the key set and the other three are typed as `Dict`, so a
+missing or invented key fails the build. Tests cover what types cannot see: no
+blank strings, no locale still holding the English text, every `{placeholder}`
+preserved (a dropped one silently deletes a number from the interface), and
+each locale written in its own script. That last check earned itself — the
+Georgian for "except" had been typed in transliteration as `garda`, which a
+one-character script test happily accepted; the test now rejects any Latin word
+inside Georgian or Russian prose and was confirmed to fail on that exact string.
+
+**Two typography facts the translations forced.** Archivo covers Latin only, so
+Russian and Georgian would have fallen back to whatever the device had; Noto
+Sans and Noto Sans Georgian are loaded with `preload: false`, and per-glyph CSS
+fallback routes each script without any branching in components. And Mkhedruli
+has no capital letters, so the `uppercase` plus wide tracking on eyebrow labels
+did nothing except pull Georgian words apart — `<html data-uncased>` drops both.
+
+**Georgian confidence.** It is a careful translation, not a certified one. It
+should be read once by a native speaker before the interface is shown to a
+Georgian-speaking client or a player's family. Nothing but presentation depends
+on it.
+
+**Edit Player.** The portfolio could create a record and then never change it,
+which is why thirteen of fifteen players held nothing but a name and a
+position. `/players/[id]/edit` closes that: identity, club, value, contract,
+representation and a portrait URL, restricted to owner and executive director,
+with every write attributed to `GBM_INTERNAL` so the agency's own numbers can
+never be mistaken for a provider's. Values and contracts upsert on their
+natural keys — verified in a rolled-back transaction that two saves leave one
+row, not two — and a club GBM names that the dataset never had is created
+rather than left as "Club unknown". Each card now says how many of its fields
+are still empty.
+
+Wikidata was tried first and does not hold this portfolio; see
+[`PLAYER_IMAGES.md`](PLAYER_IMAGES.md) for what was found and why one
+year-precision date of birth was deliberately not imported.
+
 ## Provider research
 
 Nine external sources were assessed on 2026-08-19 — see

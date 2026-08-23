@@ -3,21 +3,22 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { NAV_GROUPS, isActivePath } from './side-nav';
+import { NAV_GROUPS, isActivePath, type NavLabels } from '@/lib/nav';
+import type { MessageKey } from '@/lib/i18n/en';
 
 /**
  * Purpose-built mobile navigation: four primary destinations plus a Menu
  * sheet holding the complete map — the desktop sidebar is never squeezed
  * onto a phone. 56px targets; safe-area aware.
  */
-const PRIMARY = [
-  { href: '/', label: 'Dashboard', icon: HomeIcon },
-  { href: '/discover', label: 'Discover', icon: RadarIcon },
-  { href: '/players', label: 'Players', icon: PlayersIcon },
-  { href: '/watchlists', label: 'Watch', icon: WatchIcon },
+const PRIMARY: Array<{ href: string; labelKey: MessageKey; icon: () => React.ReactElement }> = [
+  { href: '/', labelKey: 'nav.dashboard', icon: HomeIcon },
+  { href: '/discover', labelKey: 'nav.discover', icon: RadarIcon },
+  { href: '/players', labelKey: 'nav.players', icon: PlayersIcon },
+  { href: '/watchlists', labelKey: 'nav.watch', icon: WatchIcon },
 ];
 
-export function BottomNav() {
+export function BottomNav({ labels }: { labels: NavLabels }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -48,7 +49,7 @@ export function BottomNav() {
           style={{ background: 'var(--bg)' }}
           role="dialog"
           aria-modal="true"
-          aria-label="Menu"
+          aria-label={labels['nav.menu']}
         >
           <div
             className="px-4 py-3 flex items-center justify-between"
@@ -57,7 +58,9 @@ export function BottomNav() {
             <div className="flex items-center gap-2">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/brand/gbm-logo.png" alt="" width={24} height={24} className="rounded-[4px]" />
-              <span className="font-bold tracking-tight text-[0.9375rem]">GBM Intelligence</span>
+              <span className="font-bold tracking-tight text-[0.9375rem]">
+                {labels['brand.name']} {labels['brand.product']}
+              </span>
             </div>
             <button
               type="button"
@@ -65,15 +68,15 @@ export function BottomNav() {
               className="px-3 py-1.5 text-sm font-semibold"
               style={{ color: 'var(--muted)' }}
             >
-              Close
+              {labels['common.cancel']}
             </button>
           </div>
-          <nav className="flex-1 overflow-y-auto px-4 py-4" aria-label="All sections">
+          <nav className="flex-1 overflow-y-auto px-4 py-4" aria-label={labels['nav.menu']}>
             {NAV_GROUPS.map((group) => (
-              <div key={group.heading} className="mb-5">
-                <p className="eyebrow mb-1.5">{group.heading}</p>
+              <div key={group.headingKey} className="mb-5">
+                <p className="eyebrow mb-1.5">{labels[group.headingKey]}</p>
                 <ul className="surface overflow-hidden">
-                  {group.items.map(({ href, label }) => {
+                  {group.items.map(({ href, labelKey }) => {
                     const active = isActivePath(pathname, href);
                     return (
                       <li key={href} style={{ borderBottom: '1px solid var(--border)' }} className="last:border-b-0">
@@ -83,7 +86,7 @@ export function BottomNav() {
                           className="flex items-center justify-between px-4 py-3 text-[0.9375rem] font-medium"
                           style={{ color: active ? 'var(--color-verified-2)' : 'var(--fg)' }}
                         >
-                          {label}
+                          {labels[labelKey]}
                           <span aria-hidden="true" style={{ color: 'var(--muted)' }}>›</span>
                         </Link>
                       </li>
@@ -98,7 +101,7 @@ export function BottomNav() {
                 className="w-full surface px-4 py-3 text-left text-[0.9375rem] font-medium"
                 style={{ color: 'var(--muted)' }}
               >
-                Sign out
+                {labels['nav.signout']}
               </button>
             </form>
           </nav>
@@ -108,10 +111,10 @@ export function BottomNav() {
       <nav
         className="fixed bottom-0 inset-x-0 z-40 md:hidden bottom-safe"
         style={{ background: 'var(--surface)', borderTop: '1px solid var(--border)' }}
-        aria-label="Primary"
+        aria-label={labels['nav.primary']}
       >
         <ul className="grid grid-cols-5">
-          {PRIMARY.map(({ href, label, icon: Icon }) => {
+          {PRIMARY.map(({ href, labelKey, icon: Icon }) => {
             const active = isActivePath(pathname, href);
             return (
               <li key={href}>
@@ -123,7 +126,7 @@ export function BottomNav() {
                   style={{ color: active ? 'var(--color-verified-2)' : 'var(--muted)' }}
                 >
                   <Icon />
-                  {label}
+                  {labels[labelKey]}
                 </Link>
               </li>
             );
@@ -137,7 +140,7 @@ export function BottomNav() {
               style={{ color: menuActive ? 'var(--color-verified-2)' : 'var(--muted)' }}
             >
               <MenuIcon />
-              Menu
+              {labels['nav.menu']}
             </button>
           </li>
         </ul>

@@ -5,6 +5,7 @@ import { PlayerPhoto } from '@/components/player-photo';
 import { countryFlag } from '@/lib/flags';
 import { formatCurrency, leagueLabel, positionCode, trend } from '@/lib/format';
 import { freshness } from '@/lib/freshness';
+import { elapsedIn, getTranslator, type Translate } from '@/lib/i18n';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,27 +49,34 @@ interface Row {
   news_last_7d: number | null;
 }
 
-const STATUS_LABEL: Record<string, string> = {
-  REPRESENTED: 'Represented',
-  IN_DISCUSSION: 'In discussion',
-  FORMER: 'Former',
-  REVIEW_QUEUE: 'Needs verification',
-};
+const STATUS_KEY = {
+  REPRESENTED: 'port.status.represented',
+  IN_DISCUSSION: 'port.status.discussion',
+  FORMER: 'port.status.former',
+  REVIEW_QUEUE: 'port.status.review',
+} as const;
 
-/** What an agent should notice about this player today. */
-function alerts(r: Row): string[] {
+/**
+ * What an agent should notice about this player today.
+ *
+ * `availability` is passed through untranslated on purpose: it is live text
+ * from the intelligence pipeline (an injury note, a suspension), not a fixed
+ * label, and inventing a translation for a source string would misreport it.
+ */
+function alerts(r: Row, t: Translate): string[] {
   const out: string[] = [];
   if (r.contract_months_remaining !== null && r.contract_months_remaining <= 6) {
-    out.push(`Contract ends in ${r.contract_months_remaining} mo`);
+    out.push(t('port.alert.contractEnds', { months: r.contract_months_remaining }));
   }
   if (r.availability) out.push(r.availability);
-  if (r.status === 'REVIEW_QUEUE') out.push('Representation unverified');
-  if (r.is_minor) out.push('Minor — guardian consent required');
+  if (r.status === 'REVIEW_QUEUE') out.push(t('port.alert.unverified'));
+  if (r.is_minor) out.push(t('port.alert.minor'));
   return out;
 }
 
 export default async function PortfolioPage() {
   const supabase = await createClient();
+  const { t } = await getTranslator();
 
   const [{ data, error }, { data: canManage }] = await Promise.all([
     supabase
@@ -85,11 +93,10 @@ export default async function PortfolioPage() {
   const other = rows.filter((r) => r.status !== 'REPRESENTED');
 
   return (
-    <AppShell eyebrow="GBM" title="Portfolio">
+    <AppShell eyebrow={t('nav.group.gbm')} title={t('port.title')}>
       <div className="px-4 md:px-6 pt-3 flex items-start justify-between gap-4">
         <p className="text-xs leading-relaxed max-w-2xl" style={{ color: 'var(--muted)' }}>
-          Players GBM Sports Group works with. This list is GBM&#8217;s own record — an external
-          site omitting a player never removes him from here.
+          {t('port.intro')}
         </p>
         {canManage === true && (
           <Link
@@ -97,7 +104,7 @@ export default async function PortfolioPage() {
             className="shrink-0 px-3 py-2 rounded-[4px] text-sm font-semibold"
             style={{ background: 'var(--color-gbm)', color: '#14100A' }}
           >
-            + Add Player
+            {t('port.addPlayer')}
           </Link>
         )}
       </div>
@@ -105,21 +112,27 @@ export default async function PortfolioPage() {
       {rows.length > 0 && (
         <section className="px-4 md:px-6 mt-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <Summary label="Represented" value={represented.length.toLocaleString('en-GB')} />
             <Summary
-              label="Known portfolio value"
+              label={t('port.summary.represented')}
+              value={represented.length.toLocaleString('en-GB')}
+            />
+            <Summary
+              label={t('port.summary.value')}
               value={formatCurrency(
                 rows.reduce((sum, r) => sum + (r.market_value ?? 0), 0) || null,
               )}
-              hint={`${rows.filter((r) => r.market_value !== null).length} of ${rows.length} valued`}
+              hint={t('port.summary.valueHint', {
+                known: rows.filter((r) => r.market_value !== null).length,
+                total: rows.length,
+              })}
             />
             <Summary
-              label="Needing attention"
-              value={String(rows.filter((r) => alerts(r).length > 0).length)}
+              label={t('port.summary.attention')}
+              value={String(rows.filter((r) => alerts(r, t).length > 0).length)}
               accent
             />
             <Summary
-              label="Contracts ≤6 mo"
+              label={t('port.summary.expiring')}
               value={String(
                 rows.filter(
                   (r) => r.contract_months_remaining !== null && r.contract_months_remaining <= 6,
@@ -134,22 +147,29 @@ export default async function PortfolioPage() {
       {rows.length === 0 ? (
         <section className="px-4 md:px-6 pt-6">
           <div className="card p-8 max-w-xl mx-auto text-center">
-            <h2 className="text-lg font-bold tracking-tight">No portfolio players yet</h2>
+            <h2 className="text-lg font-bold tracking-tight">{t('port.empty.title')}</h2>
             <p className="text-sm mt-2 leading-relaxed" style={{ color: 'var(--muted)' }}>
-              Nothing in the database records a GBM representation relationship. Add a player to
-              start the portfolio — this platform never displays invented entries.
+              {t('port.empty.body')}
             </p>
           </div>
         </section>
       ) : (
         <>
-          <Group title="Represented" count={represented.length} rows={represented} />
+          <Group
+            title={t('port.group.represented')}
+            count={represented.length}
+            rows={represented}
+            t={t}
+            canManage={canManage === true}
+          />
           {other.length > 0 && (
             <Group
-              title="Review queue and other relationships"
+              title={t('port.group.other')}
               count={other.length}
               rows={other}
-              subtitle="Named internally but not yet verified, in discussion, or former clients"
+              subtitle={t('port.group.otherSub')}
+              t={t}
+              canManage={canManage === true}
             />
           )}
         </>
@@ -195,11 +215,15 @@ function Group({
   subtitle,
   count,
   rows,
+  t,
+  canManage,
 }: {
   title: string;
   subtitle?: string;
   count: number;
   rows: Row[];
+  t: Translate;
+  canManage: boolean;
 }) {
   return (
     <section className="px-4 md:px-6 mt-5">
@@ -211,32 +235,60 @@ function Group({
       </div>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {rows.map((r) => (
-          <PortfolioCard key={r.player_id} r={r} />
+          <PortfolioCard key={r.player_id} r={r} t={t} canManage={canManage} />
         ))}
       </div>
     </section>
   );
 }
 
-function PortfolioCard({ r }: { r: Row }) {
+function PortfolioCard({ r, t, canManage }: { r: Row; t: Translate; canManage: boolean }) {
   const flag = countryFlag(r.nationality);
-  const t = r.value_change_12m_pct !== null ? trend(r.value_change_12m_pct) : null;
-  const notes = alerts(r);
-  const checked = freshness(r.last_checked_at ?? r.caches_refreshed_at);
+  const move = r.value_change_12m_pct !== null ? trend(r.value_change_12m_pct) : null;
+  const notes = alerts(r, t);
+  const checked = freshness(r.last_checked_at ?? r.caches_refreshed_at, {
+    never: t('common.neverChecked'),
+    elapsed: elapsedIn(t),
+    format: (e) => t('common.checkedAgo', { when: e }),
+  });
+
+  /* How much of this record is still empty. Shown rather than hidden: the
+     point of the portfolio is knowing what GBM does and does not hold. */
+  const missing = [
+    r.club_name,
+    r.market_value,
+    r.contract_months_remaining,
+    r.age,
+    r.nationality,
+    r.portrait_url,
+  ].filter((v) => v === null || v === undefined).length;
 
   return (
-    <Link href={`/players/${r.player_id}`} className="card card-interactive p-4 block">
+    /* A "stretched link": the whole card is clickable via an overlay, so the
+       edit control can sit in normal flow in the footer instead of floating
+       over the player's name. Nesting an <a> inside an <a> is invalid, and
+       absolute-positioning the edit button on top covered the one field the
+       card exists to show — visibly so in Georgian, where "დეტალების
+       რედაქტირება" is twice the length of "Edit details". */
+    <div className="card card-interactive p-4 relative">
+      <Link
+        href={`/players/${r.player_id}`}
+        className="absolute inset-0 z-[1] rounded-[inherit]"
+        aria-label={r.full_name}
+      />
       <div className="flex items-start gap-3">
         <PlayerPhoto src={r.portrait_url} name={r.full_name} size={64} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <p className="font-semibold text-[0.9375rem] truncate">{r.full_name}</p>
             {r.status !== 'REPRESENTED' && (
-              <span className="badge">{STATUS_LABEL[r.status] ?? r.status}</span>
+              <span className="badge">
+                {r.status in STATUS_KEY ? t(STATUS_KEY[r.status as keyof typeof STATUS_KEY]) : r.status}
+              </span>
             )}
           </div>
           <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--muted)' }}>
-            {r.club_name ?? 'Club unknown'}
+            {r.club_name ?? t('common.clubUnknown')}
             {r.league_name ? ` · ${leagueLabel(r.league_name) ?? r.league_name}` : ''}
           </p>
           <p className="text-xs mt-1 data" style={{ color: 'var(--muted)' }}>
@@ -249,28 +301,30 @@ function PortfolioCard({ r }: { r: Row }) {
 
       <div className="mt-3 flex items-center justify-between gap-3">
         <div>
-          <p className="eyebrow">Value</p>
+          <p className="eyebrow">{t('common.value')}</p>
           <p className="data text-sm font-semibold">
             {formatCurrency(r.market_value)}
-            {t && <span className={`ml-1.5 text-xs ${t.className}`}>{t.text}</span>}
+            {move && <span className={`ml-1.5 text-xs ${move.className}`}>{move.text}</span>}
           </p>
         </div>
         <div className="text-right">
-          <p className="eyebrow">Contract</p>
+          <p className="eyebrow">{t('common.contract')}</p>
           <p className="data text-sm font-semibold">
-            {r.contract_months_remaining !== null ? `${r.contract_months_remaining} mo` : '—'}
+            {r.contract_months_remaining !== null
+              ? t('common.months', { count: r.contract_months_remaining })
+              : t('common.none')}
           </p>
         </div>
         <div className="text-right">
-          <p className="eyebrow">Responsible</p>
+          <p className="eyebrow">{t('port.responsible')}</p>
           <p className="text-sm font-semibold truncate max-w-[9rem]">
-            {r.assigned_staff_name ?? 'Unassigned'}
+            {r.assigned_staff_name ?? t('port.unassigned')}
           </p>
         </div>
       </div>
 
       <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
-        <p className="eyebrow mb-1">Last match</p>
+        <p className="eyebrow mb-1">{t('port.lastMatch')}</p>
         {r.latest_match_at ? (
           <p className="text-xs" style={{ color: 'var(--muted)' }}>
             {new Date(r.latest_match_at).toLocaleDateString('en-GB', {
@@ -285,7 +339,7 @@ function PortfolioCard({ r }: { r: Row }) {
           </p>
         ) : (
           <p className="text-xs" style={{ color: 'var(--muted)' }}>
-            No match data yet for this player.
+            {t('port.noMatchData')}
           </p>
         )}
       </div>
@@ -298,9 +352,21 @@ function PortfolioCard({ r }: { r: Row }) {
         </ul>
       )}
 
-      <p className="eyebrow mt-3" style={{ color: 'var(--muted)' }}>
-        {checked.label}
-      </p>
-    </Link>
+      <div className="mt-3 flex items-end justify-between gap-3">
+        <p className="eyebrow" style={{ color: 'var(--muted)' }}>
+          {checked.label}
+          {missing > 0 && ` · ${t('port.incomplete', { count: missing })}`}
+        </p>
+        {canManage && (
+          <Link
+            href={`/players/${r.player_id}/edit`}
+            className="relative z-[2] shrink-0 px-2 py-1 rounded-[4px] text-[0.6875rem] font-semibold whitespace-nowrap"
+            style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--muted)' }}
+          >
+            {t('port.editPlayer')}
+          </Link>
+        )}
+      </div>
+    </div>
   );
 }

@@ -51,9 +51,14 @@
   --color-gbm:        #C2A24B;
   --color-gbm-2:      #D9BC6B;
 
-  --font-display: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
-  --font-body:    var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
-  --font-mono:    var(--font-plex-mono), ui-monospace, "SF Mono", monospace;
+  /* Archivo carries Latin. Georgian and Cyrillic glyphs are absent from it,
+     so the browser falls through to the Noto faces per glyph — a Georgian
+     name inside an English sentence renders correctly without any branching.
+     Order matters: Georgian first, because Noto Sans would otherwise claim
+     Latin fallback before the Georgian face is ever consulted. */
+  --font-display: var(--font-archivo), var(--font-noto-georgian), var(--font-noto-cyrillic), ui-sans-serif, system-ui, sans-serif;
+  --font-body:    var(--font-archivo), var(--font-noto-georgian), var(--font-noto-cyrillic), ui-sans-serif, system-ui, sans-serif;
+  --font-mono:    var(--font-plex-mono), var(--font-noto-georgian), ui-monospace, "SF Mono", monospace;
 
   --radius-card: 6px;
 }
@@ -133,6 +138,16 @@ body {
   text-transform: uppercase;
   font-weight: 600;
   color: var(--muted);
+}
+
+/* Mkhedruli has no capital letters, so `uppercase` changes nothing — but the
+   tracking meant to space out small Latin caps pulls Georgian letterforms
+   apart until they stop reading as words. Both are dropped for uncased
+   scripts; the label keeps its size, weight and colour, so the hierarchy the
+   eyebrow encodes survives the change. */
+[data-uncased] .eyebrow {
+  text-transform: none;
+  letter-spacing: 0;
 }
 
 /* --------------------------------------------------------------------------
@@ -355,3 +370,25 @@ body {
 /* Safe area for the bottom nav on notched iPhones. */
 .pb-safe { padding-bottom: calc(4rem + env(safe-area-inset-bottom)); }
 .bottom-safe { padding-bottom: env(safe-area-inset-bottom); }
+
+/* --------------------------------------------------------------------------
+   FORM FIELDS
+   One input treatment, so the Add Player and Edit Player forms cannot drift
+   apart. `font-size: 16px` on the control is not a style choice — iOS Safari
+   zooms the viewport when a focused input is smaller than that, which on a
+   phone throws the whole page sideways mid-entry.
+   -------------------------------------------------------------------------- */
+.gbm-input {
+  width: 100%;
+  padding: 0.5rem 0.625rem;
+  font-size: 1rem;
+  font-family: inherit;
+  border-radius: 3px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--fg);
+}
+.gbm-input:focus-visible {
+  outline: 2px solid var(--color-verified);
+  outline-offset: -1px;
+}

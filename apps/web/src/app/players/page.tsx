@@ -5,6 +5,7 @@ import { PlayerFilters } from '@/components/player-filters';
 import { Pagination } from '@/components/pagination';
 import { ViewToggle } from '@/components/view-toggle';
 import { cachedPlayerColumns, dobCutoff, fromCachedPlayer, monthsAhead, todayIso } from '@/lib/card-data';
+import { getTranslator } from '@/lib/i18n';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,6 +30,7 @@ const PAGE_SIZE = 48;
 export default async function PlayersPage({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
   const supabase = await createClient();
+  const { t } = await getTranslator();
 
   const sort = sp.sort ?? 'fit';
 
@@ -145,7 +147,11 @@ export default async function PlayersPage({ searchParams }: { searchParams: Sear
   };
 
   return (
-    <AppShell eyebrow="Scouting" title="Players" action={<ViewToggle />}>
+    <AppShell
+      eyebrow={t('nav.group.scouting')}
+      title={t('players.title')}
+      action={<ViewToggle labels={{ list: t('players.view.list'), grid: t('players.view.grid') }} />}
+    >
       <PlayerFilters
         positions={positionOptions}
         nationalities={(nationalities ?? []).map((n) => n.name)}
@@ -155,26 +161,33 @@ export default async function PlayersPage({ searchParams }: { searchParams: Sear
       <div className="px-4 md:px-6 py-2 flex items-baseline justify-between">
         <p className="eyebrow">
           {error
-            ? 'Query failed'
-            : `${players.length}${hasNext ? '+' : ''} player${players.length === 1 ? '' : 's'}${page > 1 ? ` · page ${page}` : ''}`}
+            ? t('players.error.title')
+            : [
+                hasNext
+                  ? t('players.countMore', { count: players.length })
+                  : t('players.count', { count: players.length }),
+                page > 1 ? t('players.page', { page }) : null,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
         </p>
         <p className="eyebrow hidden sm:block">
-          {sort === 'fit' ? 'Ranked by GBM opportunity model' : 'Counting statistics from the connected dataset'}
+          {sort === 'fit' ? t('players.rankedByFit') : t('players.countingStats')}
         </p>
       </div>
 
       {error ? (
         <div className="surface mx-4 md:mx-6 px-4 py-10 text-center">
           <p className="font-semibold text-sm" style={{ color: 'var(--color-conflict)' }}>
-            Could not load players
+            {t('players.error.title')}
           </p>
           <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>{error.message}</p>
         </div>
       ) : players.length === 0 ? (
         <div className="surface mx-4 md:mx-6 px-4 py-12 text-center">
-          <p className="font-semibold text-sm">No players match these filters</p>
+          <p className="font-semibold text-sm">{t('players.empty.title')}</p>
           <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
-            Widen the age range or lower the statistical floors to see more.
+            {t('players.empty.body')}
           </p>
         </div>
       ) : view === 'grid' ? (

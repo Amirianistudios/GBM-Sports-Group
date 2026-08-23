@@ -4,7 +4,16 @@ import { useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 
-export function LoginForm() {
+export interface LoginLabels {
+  title: string;
+  email: string;
+  password: string;
+  submit: string;
+  working: string;
+  noSignup: string;
+}
+
+export function LoginForm({ labels }: { labels: LoginLabels }) {
   const params = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -59,14 +68,14 @@ export function LoginForm() {
             Elevating Careers · Building Legacies
           </p>
           <p className="text-sm" style={{ color: 'var(--muted)' }}>
-            Internal football intelligence for GBM Sports Group. Sign in to continue.
+            {labels.title}
           </p>
         </div>
 
         <form onSubmit={onSubmit} className="space-y-4">
           <div>
             <label htmlFor="email" className="eyebrow block mb-1.5">
-              Email
+              {labels.email}
             </label>
             <input
               id="email"
@@ -82,7 +91,7 @@ export function LoginForm() {
 
           <div>
             <label htmlFor="password" className="eyebrow block mb-1.5">
-              Password
+              {labels.password}
             </label>
             <input
               id="password"
@@ -115,13 +124,12 @@ export function LoginForm() {
             className="w-full py-2.5 rounded-[3px] font-semibold text-sm disabled:opacity-60"
             style={{ background: 'var(--color-verified)', color: '#06201C' }}
           >
-            {status.kind === 'working' ? 'Signing in…' : 'Sign in'}
+            {status.kind === 'working' ? labels.working : labels.submit}
           </button>
         </form>
 
         <p className="mt-8 text-xs leading-relaxed" style={{ color: 'var(--muted)' }}>
-          Accounts are created by a GBM administrator. There is no public sign-up and no public
-          player database.
+          {labels.noSignup}
         </p>
       </div>
     </div>
