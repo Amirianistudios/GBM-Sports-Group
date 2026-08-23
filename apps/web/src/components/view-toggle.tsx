@@ -7,7 +7,7 @@ import { useTransition } from 'react';
  * Grid/list switch, persisted in the URL (?view=) so it survives refresh,
  * sharing and back-navigation. List is the high-volume default.
  */
-export function ViewToggle() {
+export function ViewToggle({ labels }: { labels: { list: string; grid: string } }) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
@@ -26,7 +26,7 @@ export function ViewToggle() {
       className="inline-flex rounded-[5px] p-0.5"
       style={{ background: 'color-mix(in srgb, var(--fg) 6%, transparent)', opacity: pending ? 0.6 : 1 }}
       role="group"
-      aria-label="View"
+      aria-label={`${labels.list} / ${labels.grid}`}
     >
       {(['list', 'grid'] as const).map((v) => (
         <button
@@ -41,7 +41,7 @@ export function ViewToggle() {
             boxShadow: view === v ? 'var(--shadow-0)' : 'none',
           }}
         >
-          {v === 'list' ? 'List' : 'Grid'}
+          {v === 'list' ? labels.list : labels.grid}
         </button>
       ))}
     </div>

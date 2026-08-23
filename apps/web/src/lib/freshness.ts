@@ -36,21 +36,36 @@ function ago(minutes: number): string {
   return `${Math.round(months)} month${Math.round(months) === 1 ? '' : 's'} ago`;
 }
 
+/**
+ * `format` lets a caller supply localised wording. It receives the elapsed
+ * time already rendered as a phrase and returns the finished sentence, so a
+ * language that puts "checked" after the duration — or inflects it — can do
+ * so instead of receiving two fragments to glue together.
+ */
+export interface FreshnessOptions {
+  verb?: string;
+  never?: string;
+  format?: (elapsed: string) => string;
+  /** Localised elapsed-time wording; defaults to the English `ago()`. */
+  elapsed?: (minutes: number) => string;
+}
+
 export function freshness(
   timestamp: string | null | undefined,
-  opts: { verb?: string; never?: string } = {},
+  opts: FreshnessOptions = {},
 ): Freshness {
   const verb = opts.verb ?? 'Checked';
-  if (!timestamp) {
-    return { label: opts.never ?? 'Never checked', isLive: false, ageMinutes: null };
-  }
+  const never = opts.never ?? 'Never checked';
+  const elapsed = opts.elapsed ?? ago;
+  const format = opts.format ?? ((e: string) => `${verb} ${e}`);
+
+  if (!timestamp) return { label: never, isLive: false, ageMinutes: null };
   const t = Date.parse(timestamp);
-  if (Number.isNaN(t)) {
-    return { label: opts.never ?? 'Never checked', isLive: false, ageMinutes: null };
-  }
+  if (Number.isNaN(t)) return { label: never, isLive: false, ageMinutes: null };
+
   const ageMinutes = (Date.now() - t) / MIN;
   return {
-    label: `${verb} ${ago(ageMinutes)}`,
+    label: format(elapsed(ageMinutes)),
     isLive: ageMinutes <= LIVE_WINDOW_MINUTES,
     ageMinutes,
   };

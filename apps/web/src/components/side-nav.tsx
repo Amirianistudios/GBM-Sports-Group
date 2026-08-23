@@ -2,50 +2,9 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { NAV_GROUPS, isActivePath, type NavLabels } from '@/lib/nav';
 
-export const NAV_GROUPS: Array<{ heading: string; items: Array<{ href: string; label: string }> }> = [
-  {
-    heading: 'Intelligence',
-    items: [
-      { href: '/', label: 'Dashboard' },
-      { href: '/discover', label: 'Discover' },
-      { href: '/radar', label: 'Market Radar' },
-      { href: '/trends', label: 'Trends' },
-    ],
-  },
-  {
-    heading: 'Scouting',
-    items: [
-      { href: '/players', label: 'Players' },
-      { href: '/compare', label: 'Compare' },
-      { href: '/clubs', label: 'Clubs' },
-    ],
-  },
-  {
-    heading: 'GBM',
-    items: [
-      { href: '/portfolio', label: 'Portfolio' },
-      { href: '/watchlists', label: 'Watchlists' },
-      { href: '/scouting', label: 'Scouting Reports' },
-    ],
-  },
-  {
-    heading: 'Organization',
-    items: [
-      { href: '/team', label: 'Team' },
-      { href: '/data', label: 'Data Providers' },
-      { href: '/data/sync', label: 'Sync Status' },
-      { href: '/settings', label: 'Settings' },
-    ],
-  },
-];
-
-export function isActivePath(pathname: string, href: string): boolean {
-  if (href === '/') return pathname === '/';
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
-
-export function SideNav() {
+export function SideNav({ labels }: { labels: NavLabels }) {
   const pathname = usePathname();
 
   return (
@@ -59,24 +18,26 @@ export function SideNav() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/brand/gbm-logo.png"
-            alt="GBM Sports Group"
+            alt={labels['brand.org']}
             width={30}
             height={30}
             className="rounded-[5px] shrink-0"
           />
           <div className="flex flex-col leading-none gap-1">
-            <span className="text-[0.9375rem] font-bold tracking-tight">GBM</span>
-            <span className="eyebrow" style={{ fontSize: '0.5625rem' }}>Intelligence</span>
+            <span className="text-[0.9375rem] font-bold tracking-tight">{labels['brand.name']}</span>
+            <span className="eyebrow" style={{ fontSize: '0.5625rem' }}>{labels['brand.product']}</span>
           </div>
         </div>
       </Link>
 
-      <nav className="flex-1 overflow-y-auto px-2 pb-6" aria-label="Primary">
+      <nav className="flex-1 overflow-y-auto px-2 pb-6" aria-label={labels['nav.primary']}>
         {NAV_GROUPS.map((group) => (
-          <div key={group.heading} className="mt-4 first:mt-1">
-            <p className="eyebrow px-2.5 mb-1" style={{ fontSize: '0.625rem' }}>{group.heading}</p>
+          <div key={group.headingKey} className="mt-4 first:mt-1">
+            <p className="eyebrow px-2.5 mb-1" style={{ fontSize: '0.625rem' }}>
+              {labels[group.headingKey]}
+            </p>
             <ul>
-              {group.items.map(({ href, label }) => {
+              {group.items.map(({ href, labelKey }) => {
                 const active = isActivePath(pathname, href);
                 return (
                   <li key={href}>
@@ -99,7 +60,7 @@ export function SideNav() {
                           opacity: active ? 1 : 0,
                         }}
                       />
-                      {label}
+                      {labels[labelKey]}
                     </Link>
                   </li>
                 );
@@ -115,7 +76,7 @@ export function SideNav() {
           className="w-full text-left px-2.5 py-2 text-[0.8125rem] rounded-[5px] transition-colors hover:bg-[color-mix(in_srgb,var(--fg)_5%,transparent)]"
           style={{ color: 'var(--muted)' }}
         >
-          Sign out
+          {labels['nav.signout']}
         </button>
       </form>
     </aside>

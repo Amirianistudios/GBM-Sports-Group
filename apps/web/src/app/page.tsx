@@ -5,6 +5,7 @@ import { PlayerPhoto } from '@/components/player-photo';
 import { cachedPlayerColumns, fromCachedPlayer, monthsAhead, todayIso } from '@/lib/card-data';
 import { countryFlag } from '@/lib/flags';
 import { formatCurrency, positionCode, trend } from '@/lib/format';
+import { getTranslator, type Translate } from '@/lib/i18n';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,6 +44,7 @@ interface Row {
 
 export default async function DashboardPage() {
   const supabase = await createClient();
+  const { t } = await getTranslator();
   const cachedCols = cachedPlayerColumns(false);
 
   const [
@@ -115,13 +117,17 @@ export default async function DashboardPage() {
   const portfolioRows = (r: { data: unknown }) => (r.data ?? []) as any[] as Row[];
 
   return (
-    <AppShell eyebrow="GBM Sports Group" title="Dashboard">
+    <AppShell eyebrow={t('brand.org')} title={t('dash.title')}>
       <section className="px-4 md:px-6 pt-4">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <Stat label="Represented" value={portfolioCount ?? 0} href="/portfolio" />
-          <Stat label="Contracts ≤6 mo" value={expiringCount ?? 0} href="/radar" accent />
-          <Stat label="Players tracked" value={playerCount ?? 0} href="/players" />
-          <Stat label="Open alerts" value={(alerts ?? []).length} accent={(alerts ?? []).length > 0} />
+          <Stat label={t('dash.stat.represented')} value={portfolioCount ?? 0} href="/portfolio" />
+          <Stat label={t('dash.stat.expiring')} value={expiringCount ?? 0} href="/radar" accent />
+          <Stat label={t('dash.stat.tracked')} value={playerCount ?? 0} href="/players" />
+          <Stat
+            label={t('dash.stat.alerts')}
+            value={(alerts ?? []).length}
+            accent={(alerts ?? []).length > 0}
+          />
         </div>
       </section>
 
@@ -141,43 +147,53 @@ export default async function DashboardPage() {
       )}
 
       <Block
-        title="Priority"
-        subtitle="Our players with a contract inside twelve months"
+        title={t('dash.block.priority')}
+        subtitle={t('dash.block.priority.sub')}
+        viewAll={t('dash.viewAll')}
         href="/portfolio"
         rows={portfolioRows(priority)}
-        empty="No portfolio contracts closing inside a year."
+        empty={t('dash.block.priority.empty')}
+        t={t}
       />
 
       <Block
-        title="Opportunities"
-        subtitle="Highest GBM fit right now"
+        title={t('dash.block.opportunities')}
+        subtitle={t('dash.block.opportunities.sub')}
+        viewAll={t('dash.viewAll')}
         href="/discover"
         rows={cards(opportunities)}
-        empty="No scored players yet."
+        empty={t('dash.block.opportunities.empty')}
+        t={t}
       />
 
       <Block
-        title="Portfolio"
-        subtitle="Players GBM represents"
+        title={t('dash.block.portfolio')}
+        subtitle={t('dash.block.portfolio.sub')}
+        viewAll={t('dash.viewAll')}
         href="/portfolio"
         rows={portfolioRows(portfolio)}
-        empty="No represented players yet."
+        empty={t('dash.block.portfolio.empty')}
+        t={t}
       />
 
       <Block
-        title="Market movement"
-        subtitle="Biggest twelve-month value change, with real minutes"
+        title={t('dash.block.movement')}
+        subtitle={t('dash.block.movement.sub')}
+        viewAll={t('dash.viewAll')}
         href="/radar"
         rows={cards(movement)}
-        empty="No valuation history yet."
+        empty={t('dash.block.movement.empty')}
+        t={t}
       />
 
       <section className="px-4 md:px-6 mt-6">
-        <h2 className="text-[0.9375rem] font-semibold tracking-tight mb-2">Recent activity</h2>
+        <h2 className="text-[0.9375rem] font-semibold tracking-tight mb-2">
+          {t('dash.block.activity')}
+        </h2>
         <div className="card overflow-hidden">
           {(activity ?? []).length === 0 ? (
             <p className="p-4 text-sm" style={{ color: 'var(--muted)' }}>
-              Nothing has run yet.
+              {t('dash.block.activity.empty')}
             </p>
           ) : (
             (activity ?? []).map((r, i) => (
@@ -196,8 +212,8 @@ export default async function DashboardPage() {
                 />
                 <span className="text-sm flex-1 truncate">{jobLabel(r.job_key)}</span>
                 <span className="text-xs" style={{ color: 'var(--muted)' }}>
-                  {r.records_updated > 0 ? `${r.records_updated} updated · ` : ''}
-                  {relative(r.started_at)}
+                  {r.records_updated > 0 ? `${t('dash.updated', { count: r.records_updated })} · ` : ''}
+                  {relative(r.started_at, t)}
                 </span>
               </div>
             ))
@@ -220,12 +236,12 @@ function jobLabel(key: string): string {
 }
 
 /** Short relative time — the dashboard has no room for a full timestamp. */
-function relative(ts: string): string {
+function relative(ts: string, t: Translate): string {
   const mins = (Date.now() - Date.parse(ts)) / 60000;
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${Math.round(mins)} min ago`;
-  if (mins < 1440) return `${Math.round(mins / 60)} h ago`;
-  return `${Math.round(mins / 1440)} d ago`;
+  if (mins < 1) return t('common.justNow');
+  if (mins < 60) return t('common.minutesAgo', { count: Math.round(mins) });
+  if (mins < 1440) return t('common.hoursAgo', { count: Math.round(mins / 60) });
+  return t('common.daysAgo', { count: Math.round(mins / 1440) });
 }
 
 function Stat({
@@ -266,15 +282,19 @@ function Stat({
 function Block({
   title,
   subtitle,
+  viewAll,
   href,
   rows,
   empty,
+  t,
 }: {
   title: string;
   subtitle: string;
+  viewAll: string;
   href: string;
   rows: Row[];
   empty: string;
+  t: Translate;
 }) {
   return (
     <section className="px-4 md:px-6 mt-6">
@@ -286,7 +306,7 @@ function Block({
           </p>
         </div>
         <Link href={href} className="text-xs font-semibold shrink-0" style={{ color: 'var(--color-verified-2)' }}>
-          View all
+          {viewAll}
         </Link>
       </div>
       {rows.length === 0 ? (
@@ -298,7 +318,7 @@ function Block({
       ) : (
         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
           {rows.map((p) => (
-            <MiniCard key={p.player_id} p={p} />
+            <MiniCard key={p.player_id} p={p} t={t} />
           ))}
         </div>
       )}
@@ -307,9 +327,9 @@ function Block({
 }
 
 /** Recognition first: a face, a name, where he plays, one number. */
-function MiniCard({ p }: { p: Row }) {
+function MiniCard({ p, t }: { p: Row; t: Translate }) {
   const months = p.contract_months_remaining ?? null;
-  const t = p.value_change_12m_pct != null ? trend(p.value_change_12m_pct) : null;
+  const move = p.value_change_12m_pct != null ? trend(p.value_change_12m_pct) : null;
   const flag = countryFlag(p.nationality);
   const urgent = months !== null && months <= 6;
 
@@ -333,10 +353,10 @@ function MiniCard({ p }: { p: Row }) {
         <p className="data text-sm font-semibold">{formatCurrency(p.market_value)}</p>
         {urgent ? (
           <p className="data text-[0.6875rem]" style={{ color: 'var(--color-gbm)' }}>
-            {months} mo left
+            {t('common.monthsLeft', { count: months })}
           </p>
-        ) : t ? (
-          <p className={`data text-[0.6875rem] ${t.className}`}>{t.text}</p>
+        ) : move ? (
+          <p className={`data text-[0.6875rem] ${move.className}`}>{move.text}</p>
         ) : null}
       </div>
     </Link>
