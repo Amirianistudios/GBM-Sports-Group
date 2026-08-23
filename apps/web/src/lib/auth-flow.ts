@@ -11,6 +11,14 @@
 export interface AuthFlowInput {
   /** Request is for /login or /auth — the unauthenticated surface. */
   isAuthRoute: boolean;
+  /**
+   * Request is for /auth/signout, the one auth route that exists to be reached
+   * *while signed in*. It sits under /auth, so it is an auth route by prefix,
+   * and the "authenticated user on an auth route goes home" rule would bounce
+   * it to / before the handler could clear the session cookie — which is
+   * precisely what made Sign out appear to do nothing.
+   */
+  isSignOutRoute: boolean;
   /** Named configuration fault from env validation, or null when config is sound. */
   configError: string | null;
   /** Whether Supabase client construction + getUser() completed without throwing. */
@@ -38,6 +46,11 @@ export function decideAuthFlow(input: AuthFlowInput): AuthFlowOutcome {
     // nothing protected may render, but the failure must say what it is.
     return input.isAuthRoute ? { kind: 'continue' } : { kind: 'service-error' };
   }
+
+  // Sign out is always allowed to run. Signed in, it clears the session;
+  // signed out, it is a harmless no-op that redirects to /login. Bouncing it
+  // either way would strand the user in the session they asked to leave.
+  if (input.isSignOutRoute) return { kind: 'continue' };
 
   if (!input.authenticated && !input.isAuthRoute) return { kind: 'redirect-login' };
   if (input.authenticated && input.isAuthRoute) return { kind: 'redirect-home' };

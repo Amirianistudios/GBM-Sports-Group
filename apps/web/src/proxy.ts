@@ -19,6 +19,7 @@ import { decideAuthFlow } from '@/lib/auth-flow';
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const isAuthRoute = pathname.startsWith('/login') || pathname.startsWith('/auth');
+  const isSignOutRoute = pathname === '/auth/signout';
 
   let configError: string | null = null;
   let supabaseApiUrl = '';
@@ -66,7 +67,13 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  const outcome = decideAuthFlow({ isAuthRoute, configError, authBackend, authenticated });
+  const outcome = decideAuthFlow({
+    isAuthRoute,
+    isSignOutRoute,
+    configError,
+    authBackend,
+    authenticated,
+  });
 
   switch (outcome.kind) {
     case 'config-error':
