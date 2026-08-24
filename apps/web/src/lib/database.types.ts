@@ -756,6 +756,9 @@ export type Database = {
           assigned_staff_id: string | null
           created_at: string
           created_by: string | null
+          guardian_consent_noted_at: string | null
+          guardian_consent_noted_by: string | null
+          guardian_consent_on_file: boolean
           notes: string | null
           player_id: string
           representation_end: string | null
@@ -770,6 +773,9 @@ export type Database = {
           assigned_staff_id?: string | null
           created_at?: string
           created_by?: string | null
+          guardian_consent_noted_at?: string | null
+          guardian_consent_noted_by?: string | null
+          guardian_consent_on_file?: boolean
           notes?: string | null
           player_id: string
           representation_end?: string | null
@@ -784,6 +790,9 @@ export type Database = {
           assigned_staff_id?: string | null
           created_at?: string
           created_by?: string | null
+          guardian_consent_noted_at?: string | null
+          guardian_consent_noted_by?: string | null
+          guardian_consent_on_file?: boolean
           notes?: string | null
           player_id?: string
           representation_end?: string | null
@@ -4280,6 +4289,8 @@ export type Database = {
           date_of_birth: string | null
           foot: Database["public"]["Enums"]["preferred_foot"] | null
           full_name: string | null
+          guardian_consent: boolean | null
+          guardian_documented: boolean | null
           height_cm: number | null
           hero_image_url: string | null
           is_minor: boolean | null

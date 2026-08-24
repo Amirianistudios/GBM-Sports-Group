@@ -98,6 +98,7 @@ export const en = {
   'port.alert.unverified': 'Representation unverified',
   'port.alert.minor': 'Minor — guardian consent required',
   'port.incomplete': '{count} details missing',
+  'port.consentHeld': 'Guardian consent on file',
 
   // ---------------------------------------------------------------- players --
   'players.title': 'Players',

@@ -89,6 +89,7 @@ export const ru: Dict = {
   'port.alert.unverified': 'Представительство не подтверждено',
   'port.alert.minor': 'Несовершеннолетний — требуется согласие опекуна',
   'port.incomplete': 'не заполнено полей: {count}',
+  'port.consentHeld': 'Согласие опекуна получено',
 
   'players.title': 'Игроки',
   'players.search': 'Поиск по имени',

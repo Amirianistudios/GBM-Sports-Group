@@ -105,6 +105,7 @@ export const ka: Dict = {
   'port.alert.unverified': 'წარმომადგენლობა დაუდასტურებელია',
   'port.alert.minor': 'არასრულწლოვანი — საჭიროა მეურვის თანხმობა',
   'port.incomplete': 'აკლია {count} ველი',
+  'port.consentHeld': 'მეურვის თანხმობა მიღებულია',
 
   'players.title': 'მოთამაშეები',
   'players.search': 'ძებნა სახელით',

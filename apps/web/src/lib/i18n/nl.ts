@@ -91,6 +91,7 @@ export const nl: Dict = {
   'port.alert.unverified': 'Vertegenwoordiging niet geverifieerd',
   'port.alert.minor': 'Minderjarig — toestemming voogd vereist',
   'port.incomplete': '{count} gegevens ontbreken',
+  'port.consentHeld': 'Toestemming voogd aanwezig',
 
   'players.title': 'Spelers',
   'players.search': 'Zoek op naam',

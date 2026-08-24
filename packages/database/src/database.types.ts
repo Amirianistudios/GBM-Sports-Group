@@ -1,5 +1,3 @@
-// Generated from the live Supabase schema. Do not edit by hand —
-// regenerate with `pnpm db:types`, which writes both copies.
 export type Json =
   | string
   | number
@@ -758,6 +756,9 @@ export type Database = {
           assigned_staff_id: string | null
           created_at: string
           created_by: string | null
+          guardian_consent_noted_at: string | null
+          guardian_consent_noted_by: string | null
+          guardian_consent_on_file: boolean
           notes: string | null
           player_id: string
           representation_end: string | null
@@ -772,6 +773,9 @@ export type Database = {
           assigned_staff_id?: string | null
           created_at?: string
           created_by?: string | null
+          guardian_consent_noted_at?: string | null
+          guardian_consent_noted_by?: string | null
+          guardian_consent_on_file?: boolean
           notes?: string | null
           player_id: string
           representation_end?: string | null
@@ -786,6 +790,9 @@ export type Database = {
           assigned_staff_id?: string | null
           created_at?: string
           created_by?: string | null
+          guardian_consent_noted_at?: string | null
+          guardian_consent_noted_by?: string | null
+          guardian_consent_on_file?: boolean
           notes?: string | null
           player_id?: string
           representation_end?: string | null
@@ -1015,6 +1022,496 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "data_providers"
             referencedColumns: ["code"]
+          },
+        ]
+      }
+      intel_adaptation_assessments: {
+        Row: {
+          adaptation_risk: string | null
+          agent_id: string
+          competition_gap: string | null
+          confidence: number | null
+          created_at: string
+          from_competition_id: string | null
+          from_competition_name: string | null
+          id: string
+          is_current: boolean
+          next_step: string | null
+          player_id: string
+          rationale: string | null
+          risk_score: number | null
+          submission_id: string | null
+          technical_gap: string | null
+          to_competition_id: string | null
+          to_competition_name: string | null
+        }
+        Insert: {
+          adaptation_risk?: string | null
+          agent_id: string
+          competition_gap?: string | null
+          confidence?: number | null
+          created_at?: string
+          from_competition_id?: string | null
+          from_competition_name?: string | null
+          id?: string
+          is_current?: boolean
+          next_step?: string | null
+          player_id: string
+          rationale?: string | null
+          risk_score?: number | null
+          submission_id?: string | null
+          technical_gap?: string | null
+          to_competition_id?: string | null
+          to_competition_name?: string | null
+        }
+        Update: {
+          adaptation_risk?: string | null
+          agent_id?: string
+          competition_gap?: string | null
+          confidence?: number | null
+          created_at?: string
+          from_competition_id?: string | null
+          from_competition_name?: string | null
+          id?: string
+          is_current?: boolean
+          next_step?: string | null
+          player_id?: string
+          rationale?: string | null
+          risk_score?: number | null
+          submission_id?: string | null
+          technical_gap?: string | null
+          to_competition_id?: string | null
+          to_competition_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "intel_adaptation_assessments_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "intel_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "intel_adaptation_assessments_from_competition_id_fkey"
+            columns: ["from_competition_id"]
+            isOneToOne: false
+            referencedRelation: "competitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "intel_adaptation_assessments_from_competition_id_fkey"
+            columns: ["from_competition_id"]
+            isOneToOne: false
+            referencedRelation: "v_league_options"
+            referencedColumns: ["league_id"]
+          },
+          {
+            foreignKeyName: "intel_adaptation_assessments_from_competition_id_fkey"
+            columns: ["from_competition_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_discovery"
+            referencedColumns: ["league_id"]
+          },
+          {
+            foreignKeyName: "intel_adaptation_assessments_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "intel_adaptation_assessments_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_discovery"
+            referencedColumns: ["player_id"]
+          },
+          {
+            foreignKeyName: "intel_adaptation_assessments_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_source_coverage"
+            referencedColumns: ["player_id"]
+          },
+          {
+            foreignKeyName: "intel_adaptation_assessments_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "v_representation_opportunities"
+            referencedColumns: ["player_id"]
+          },
+          {
+            foreignKeyName: "intel_adaptation_assessments_submission_id_fkey"
+            columns: ["submission_id"]
+            isOneToOne: false
+            referencedRelation: "intel_submissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "intel_adaptation_assessments_to_competition_id_fkey"
+            columns: ["to_competition_id"]
+            isOneToOne: false
+            referencedRelation: "competitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "intel_adaptation_assessments_to_competition_id_fkey"
+            columns: ["to_competition_id"]
+            isOneToOne: false
+            referencedRelation: "v_league_options"
+            referencedColumns: ["league_id"]
+          },
+          {
+            foreignKeyName: "intel_adaptation_assessments_to_competition_id_fkey"
+            columns: ["to_competition_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_discovery"
+            referencedColumns: ["league_id"]
+          },
+        ]
+      }
+      intel_agents: {
+        Row: {
+          agent_code: string
+          auth_user_id: string
+          created_at: string
+          display_name: string
+          id: string
+          is_active: boolean
+          last_seen_at: string | null
+          provider_code: string
+          scopes: string[]
+        }
+        Insert: {
+          agent_code: string
+          auth_user_id: string
+          created_at?: string
+          display_name: string
+          id?: string
+          is_active?: boolean
+          last_seen_at?: string | null
+          provider_code: string
+          scopes?: string[]
+        }
+        Update: {
+          agent_code?: string
+          auth_user_id?: string
+          created_at?: string
+          display_name?: string
+          id?: string
+          is_active?: boolean
+          last_seen_at?: string | null
+          provider_code?: string
+          scopes?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "intel_agents_provider_code_fkey"
+            columns: ["provider_code"]
+            isOneToOne: false
+            referencedRelation: "data_providers"
+            referencedColumns: ["code"]
+          },
+        ]
+      }
+      intel_recommendations: {
+        Row: {
+          age_profile: string | null
+          agent_id: string
+          confidence: number | null
+          created_at: string
+          development_potential: string | null
+          financial_band: string | null
+          fit_label: string | null
+          id: string
+          is_current: boolean
+          player_id: string
+          playing_style: string | null
+          rationale: string | null
+          recommendation: Database["public"]["Enums"]["recommendation"]
+          report_id: string | null
+          resale_potential: string | null
+          submission_id: string | null
+          target_club_id: string | null
+          target_competition_id: string | null
+        }
+        Insert: {
+          age_profile?: string | null
+          agent_id: string
+          confidence?: number | null
+          created_at?: string
+          development_potential?: string | null
+          financial_band?: string | null
+          fit_label?: string | null
+          id?: string
+          is_current?: boolean
+          player_id: string
+          playing_style?: string | null
+          rationale?: string | null
+          recommendation: Database["public"]["Enums"]["recommendation"]
+          report_id?: string | null
+          resale_potential?: string | null
+          submission_id?: string | null
+          target_club_id?: string | null
+          target_competition_id?: string | null
+        }
+        Update: {
+          age_profile?: string | null
+          agent_id?: string
+          confidence?: number | null
+          created_at?: string
+          development_potential?: string | null
+          financial_band?: string | null
+          fit_label?: string | null
+          id?: string
+          is_current?: boolean
+          player_id?: string
+          playing_style?: string | null
+          rationale?: string | null
+          recommendation?: Database["public"]["Enums"]["recommendation"]
+          report_id?: string | null
+          resale_potential?: string | null
+          submission_id?: string | null
+          target_club_id?: string | null
+          target_competition_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "intel_recommendations_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "intel_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "intel_recommendations_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "intel_recommendations_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_discovery"
+            referencedColumns: ["player_id"]
+          },
+          {
+            foreignKeyName: "intel_recommendations_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_source_coverage"
+            referencedColumns: ["player_id"]
+          },
+          {
+            foreignKeyName: "intel_recommendations_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "v_representation_opportunities"
+            referencedColumns: ["player_id"]
+          },
+          {
+            foreignKeyName: "intel_recommendations_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "intel_reports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "intel_recommendations_submission_id_fkey"
+            columns: ["submission_id"]
+            isOneToOne: false
+            referencedRelation: "intel_submissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "intel_recommendations_target_club_id_fkey"
+            columns: ["target_club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "intel_recommendations_target_competition_id_fkey"
+            columns: ["target_competition_id"]
+            isOneToOne: false
+            referencedRelation: "competitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "intel_recommendations_target_competition_id_fkey"
+            columns: ["target_competition_id"]
+            isOneToOne: false
+            referencedRelation: "v_league_options"
+            referencedColumns: ["league_id"]
+          },
+          {
+            foreignKeyName: "intel_recommendations_target_competition_id_fkey"
+            columns: ["target_competition_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_discovery"
+            referencedColumns: ["league_id"]
+          },
+        ]
+      }
+      intel_reports: {
+        Row: {
+          agent_id: string
+          confidence: number | null
+          created_at: string
+          headline: string
+          id: string
+          is_current: boolean
+          metrics: Json | null
+          model_name: string | null
+          period_end: string | null
+          period_start: string | null
+          player_id: string
+          report_type: string
+          sections: Json
+          sources: Json
+          submission_id: string | null
+          summary: string | null
+          supersedes_id: string | null
+          version: number
+        }
+        Insert: {
+          agent_id: string
+          confidence?: number | null
+          created_at?: string
+          headline: string
+          id?: string
+          is_current?: boolean
+          metrics?: Json | null
+          model_name?: string | null
+          period_end?: string | null
+          period_start?: string | null
+          player_id: string
+          report_type: string
+          sections?: Json
+          sources?: Json
+          submission_id?: string | null
+          summary?: string | null
+          supersedes_id?: string | null
+          version?: number
+        }
+        Update: {
+          agent_id?: string
+          confidence?: number | null
+          created_at?: string
+          headline?: string
+          id?: string
+          is_current?: boolean
+          metrics?: Json | null
+          model_name?: string | null
+          period_end?: string | null
+          period_start?: string | null
+          player_id?: string
+          report_type?: string
+          sections?: Json
+          sources?: Json
+          submission_id?: string | null
+          summary?: string | null
+          supersedes_id?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "intel_reports_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "intel_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "intel_reports_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "intel_reports_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_discovery"
+            referencedColumns: ["player_id"]
+          },
+          {
+            foreignKeyName: "intel_reports_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_source_coverage"
+            referencedColumns: ["player_id"]
+          },
+          {
+            foreignKeyName: "intel_reports_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "v_representation_opportunities"
+            referencedColumns: ["player_id"]
+          },
+          {
+            foreignKeyName: "intel_reports_submission_id_fkey"
+            columns: ["submission_id"]
+            isOneToOne: false
+            referencedRelation: "intel_submissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "intel_reports_supersedes_id_fkey"
+            columns: ["supersedes_id"]
+            isOneToOne: false
+            referencedRelation: "intel_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      intel_submissions: {
+        Row: {
+          agent_id: string
+          error: string | null
+          id: string
+          kind: string
+          payload: Json
+          payload_hash: string
+          received_at: string
+          result: Json | null
+          status: string
+          submission_key: string
+        }
+        Insert: {
+          agent_id: string
+          error?: string | null
+          id?: string
+          kind: string
+          payload: Json
+          payload_hash: string
+          received_at?: string
+          result?: Json | null
+          status: string
+          submission_key: string
+        }
+        Update: {
+          agent_id?: string
+          error?: string | null
+          id?: string
+          kind?: string
+          payload?: Json
+          payload_hash?: string
+          received_at?: string
+          result?: Json | null
+          status?: string
+          submission_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "intel_submissions_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "intel_agents"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -2040,51 +2537,70 @@ export type Database = {
       }
       player_news: {
         Row: {
+          agent_id: string | null
           category: string | null
           confidence: number | null
           content_hash: string
           discovered_at: string
           headline: string
           id: string
+          impact: string | null
+          impact_note: string | null
           language: string | null
           player_id: string
           published_at: string | null
+          reliability: number | null
           source_name: string
           source_type: string
           source_url: string | null
           summary: string | null
         }
         Insert: {
+          agent_id?: string | null
           category?: string | null
           confidence?: number | null
           content_hash: string
           discovered_at?: string
           headline: string
           id?: string
+          impact?: string | null
+          impact_note?: string | null
           language?: string | null
           player_id: string
           published_at?: string | null
+          reliability?: number | null
           source_name: string
           source_type: string
           source_url?: string | null
           summary?: string | null
         }
         Update: {
+          agent_id?: string | null
           category?: string | null
           confidence?: number | null
           content_hash?: string
           discovered_at?: string
           headline?: string
           id?: string
+          impact?: string | null
+          impact_note?: string | null
           language?: string | null
           player_id?: string
           published_at?: string | null
+          reliability?: number | null
           source_name?: string
           source_type?: string
           source_url?: string | null
           summary?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "player_news_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "intel_agents"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "player_news_player_id_fkey"
             columns: ["player_id"]
@@ -3376,6 +3892,7 @@ export type Database = {
       source_records: {
         Row: {
           club_id: string | null
+          collected_by: string | null
           created_at: string
           external_id: string
           id: string
@@ -3391,6 +3908,7 @@ export type Database = {
         }
         Insert: {
           club_id?: string | null
+          collected_by?: string | null
           created_at?: string
           external_id: string
           id?: string
@@ -3406,6 +3924,7 @@ export type Database = {
         }
         Update: {
           club_id?: string | null
+          collected_by?: string | null
           created_at?: string
           external_id?: string
           id?: string
@@ -3426,6 +3945,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "clubs"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "source_records_collected_by_fkey"
+            columns: ["collected_by"]
+            isOneToOne: false
+            referencedRelation: "data_providers"
+            referencedColumns: ["code"]
           },
           {
             foreignKeyName: "source_records_player_id_fkey"
@@ -3763,6 +4289,8 @@ export type Database = {
           date_of_birth: string | null
           foot: Database["public"]["Enums"]["preferred_foot"] | null
           full_name: string | null
+          guardian_consent: boolean | null
+          guardian_documented: boolean | null
           height_cm: number | null
           hero_image_url: string | null
           is_minor: boolean | null
@@ -4079,6 +4607,18 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["gbm_role"]
       }
+      gbm_intel_current_agent: { Args: never; Returns: string }
+      gbm_intel_resolve_player: {
+        Args: { p_date_of_birth?: string; p_name: string }
+        Returns: {
+          club_name: string
+          date_of_birth: string
+          full_name: string
+          match_quality: string
+          player_id: string
+        }[]
+      }
+      gbm_intel_submit: { Args: { p_submission: Json }; Returns: Json }
       gbm_is_member: { Args: never; Returns: boolean }
       gbm_normalize_name: { Args: { input: string }; Returns: string }
       gbm_recompute_data_confidence: {
@@ -4120,6 +4660,7 @@ export type Database = {
         | "GBM_SCOUT"
         | "CONFLICTING"
         | "UNKNOWN"
+        | "AI_ASSESSED"
       gbm_portfolio_status:
         | "REPRESENTED"
         | "IN_DISCUSSION"
@@ -4321,6 +4862,7 @@ export const Constants = {
         "GBM_SCOUT",
         "CONFLICTING",
         "UNKNOWN",
+        "AI_ASSESSED",
       ],
       gbm_portfolio_status: [
         "REPRESENTED",

@@ -26,6 +26,8 @@ interface Row {
   full_name: string;
   age: number | null;
   is_minor: boolean | null;
+  guardian_consent: boolean | null;
+  guardian_documented: boolean | null;
   nationality: string | null;
   primary_position: string | null;
   club_name: string | null;
@@ -70,7 +72,10 @@ function alerts(r: Row, t: Translate): string[] {
   }
   if (r.availability) out.push(r.availability);
   if (r.status === 'REVIEW_QUEUE') out.push(t('port.alert.unverified'));
-  if (r.is_minor) out.push(t('port.alert.minor'));
+  // Being under 18 is not itself something to act on — missing consent is.
+  // Once consent is recorded the card says so quietly instead of warning,
+  // and the minor's status is still visible from the age beside the name.
+  if (r.is_minor && !r.guardian_consent) out.push(t('port.alert.minor'));
   return out;
 }
 
@@ -356,6 +361,9 @@ function PortfolioCard({ r, t, canManage }: { r: Row; t: Translate; canManage: b
         <p className="eyebrow" style={{ color: 'var(--muted)' }}>
           {checked.label}
           {missing > 0 && ` · ${t('port.incomplete', { count: missing })}`}
+          {/* Stated quietly rather than badged: it is the absence of consent
+              that needs attention, not its presence. */}
+          {r.is_minor && r.guardian_consent && ` · ${t('port.consentHeld')}`}
         </p>
         {canManage && (
           <Link
