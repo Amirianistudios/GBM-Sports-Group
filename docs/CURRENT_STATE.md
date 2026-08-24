@@ -178,10 +178,14 @@ why they differ.
 | `20260827110000_performance_submissions_without_a_heatmap` | Coalesces `player_season_stats.advanced` so a statistics submission need not carry one |
 | `20260827120000_minimal_payloads_survive_every_branch` | Coalesces `source_facts.confidence`; refuses `source_name` and `fact_key` by name |
 | `20260827130000_a_model_is_not_a_second_source` | Excludes `AI_ASSESSED` from `player_fact_conflicts`, so a model neither corroborates nor contradicts a provider |
+| `20260828100000_guardian_consent_is_recorded_not_inferred` | Consent recorded on `gbm_portfolio`; the minor warning stops depending on the birthday |
+| `20260829100000_the_contract_reaches_the_whole_record` | IDENTITY and the record kinds; natural keys for career history and injuries |
+| `20260829110000_dispatcher_learns_the_record_kinds` | Points `gbm_intel_submit` at them and widens the accepted kinds |
+| `20260829120000_unknown_is_not_an_answer` | `foot='UNKNOWN'` treated as empty; `primary_position` stored verbatim |
 
 Re-checked against `supabase.list_migrations` on 2026-08-27. **The two name
 lists are not identical, and the earlier claim here that they were was wrong.**
-The hosted project reports 35 migrations against 30 files. Seven applied names
+The hosted project reports 39 migrations against 34 files. Seven applied names
 have no same-named file —
 
 `idempotency_constraints`, `intelligence_views`, `discovery_signals_growth_scale`,
@@ -840,6 +844,58 @@ submissions with kind, outcome and, where refused, the reason. The reason is
 the point — a bare count would have hidden every one of those faults.
 `DUPLICATE` is shown neutrally rather than as a failure, because a retry
 returning the first answer is the contract working as designed.
+
+### The contract now reaches the whole record
+
+The submission contract could write seven tables. Everything else a research
+team gathers — identity, height, foot, position, the club, career history,
+transfers, contracts, valuations, the agent, injuries — had either no route at
+all or a route into `source_facts` that nothing displays. **An agent could
+file a perfect record for all fifteen GBM players and every profile would
+still render blank.** Verified before changing anything: no trigger and no
+function anywhere promoted a fact into the canonical record.
+
+Migrations 0034–0035 close that. `IDENTITY` fills `players`, and `VALUATION`,
+`CONTRACT`, `TRANSFER`, `REPRESENTATION`, `INJURY` and `CAREER` write the
+provider-keyed record tables. `player_team_history` and `player_injuries`
+gained the natural keys they lacked, without which a second run would have
+duplicated rather than updated.
+
+**The rule that makes it safe is `coalesce(existing, submitted)`** — a column
+is filled only where it is currently NULL. Transfermarkt or a GBM entry always
+wins, and re-running can never change a field someone has since corrected.
+Every supplied field is also written to `source_facts`, which is what lets the
+interface mark an AI-sourced value as AI-sourced. Verified against production,
+rolled back: a first submission filled `birth_place, foot, height_cm,
+shirt_number, weight_kg`; a second carrying deliberately wrong values (height
+999, foot LEFT, position Goalkeeper) filled nothing and changed nothing.
+
+Two faults were caught in that verification, both of which would have wasted
+the exercise silently:
+
+- **`foot = 'UNKNOWN'` is the column saying it has no answer, not an answer.**
+  984 players carry it, 8 of them in the GBM portfolio, and a plain coalesce
+  treated the placeholder as a real value — so preferred foot could never have
+  been corrected for any of them.
+- **`primary_position` is stored verbatim in Transfermarkt's title case**
+  (`Centre-Back`, `Goalkeeper`). The first draft upper-cased submissions, which
+  would have created a second vocabulary and split the discovery filter.
+
+An image submitted without `image_credit` is refused by name. The platform
+cannot verify a licence, but it can decline to store a picture nobody has
+attributed.
+
+**Not accepted:** match-level statistics. `player_match_stats` hangs off a
+`matches` row, `matches` is empty by design, and its unique key treats a NULL
+`match_id` as distinct, so submissions would duplicate on every run. Season
+aggregates and heatmaps work today through `PERFORMANCE` and
+`player_season_stats.advanced`.
+
+**A sourcing limit that is not a storage limit:** SofaScore, FotMob and FBref
+are downstream Opta licensees that cannot sublicense. The xG and heatmap
+columns will hold the data; obtaining it by scraping those sites breaches
+their terms, and that applies to an external agent exactly as it applied to
+GBM's own connectors.
 
 **Open for GBM:** issue the agent's Supabase account and set its `scopes`
 (start with `NEWS` and `REPORT`), and decide whether AI recommendations should
