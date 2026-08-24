@@ -93,6 +93,9 @@ export default async function PlayerProfile({ params }: { params: Promise<{ id: 
     { data: ratings },
     { data: notes },
     { data: links },
+    { data: intelReports },
+    { data: intelRecommendation },
+    { data: intelAdaptation },
   ] = await Promise.all([
     supabase.from('player_external_ids').select('*').eq('player_id', id),
     supabase.from('market_values').select('valued_on, value_amount, provider_code').eq('player_id', id).order('valued_on'),
@@ -121,6 +124,32 @@ export default async function PlayerProfile({ params }: { params: Promise<{ id: 
       .order('created_at', { ascending: false })
       .limit(20),
     supabase.from('player_links').select('id, kind, url, label').eq('player_id', id).order('created_at'),
+
+    // External AI intelligence. Read separately from `scouting_reports` and
+    // rendered in its own tab: a model's assessment and a scout's observation
+    // are different kinds of evidence and the interface must not blur them.
+    supabase
+      .from('intel_reports')
+      .select('id, report_type, version, headline, summary, sections, sources, model_name, confidence, created_at, is_current')
+      .eq('player_id', id)
+      .order('created_at', { ascending: false })
+      .limit(10),
+    supabase
+      .from('intel_recommendations')
+      .select('recommendation, fit_label, age_profile, financial_band, playing_style, development_potential, resale_potential, rationale, confidence, created_at')
+      .eq('player_id', id)
+      .eq('is_current', true)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('intel_adaptation_assessments')
+      .select('from_competition_name, to_competition_name, technical_gap, competition_gap, adaptation_risk, risk_score, next_step, rationale, confidence, created_at')
+      .eq('player_id', id)
+      .eq('is_current', true)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   const club = Array.isArray(player.clubs) ? player.clubs[0] : player.clubs;
@@ -451,6 +480,138 @@ export default async function PlayerProfile({ params }: { params: Promise<{ id: 
     </>
   );
 
+
+  /*
+   * AI INTELLIGENCE — its own tab, deliberately.
+   *
+   * A model's assessment and a scout's observation are different kinds of
+   * evidence. Merging them into one "Reports" list would make the interface
+   * assert an equivalence the platform does not believe, so this panel says
+   * who produced the material, what it read, and how sure it claims to be,
+   * on every item. A report with no sources is an opinion and is labelled
+   * as one rather than dressed as research.
+   */
+  const current = (intelReports ?? []).filter((r) => r.is_current);
+  const superseded = (intelReports ?? []).filter((r) => !r.is_current);
+
+  const intelPanel = (
+    <>
+      <p className="px-4 md:px-6 mt-3 text-xs leading-relaxed" style={{ color: 'var(--muted)' }}>
+        Produced by an external AI research team, not by a GBM scout. Ranked below every
+        source it cites and never merged into verified facts or scouting reports.
+      </p>
+
+      {intelRecommendation && (
+        <Section title="Recruitment view" subtitle={formatDate(intelRecommendation.created_at)}>
+          <div className="px-4 py-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="badge badge-gbm">{intelRecommendation.recommendation}</span>
+              {intelRecommendation.fit_label && (
+                <span className="text-sm font-semibold">{intelRecommendation.fit_label}</span>
+              )}
+              {intelRecommendation.confidence != null && (
+                <span className="opportunity text-xs">
+                  confidence {Math.round(Number(intelRecommendation.confidence) * 100)}%
+                </span>
+              )}
+            </div>
+            <dl className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-3">
+              {([
+                ['Age profile', intelRecommendation.age_profile],
+                ['Financial band', intelRecommendation.financial_band],
+                ['Playing style', intelRecommendation.playing_style],
+                ['Development', intelRecommendation.development_potential],
+                ['Resale', intelRecommendation.resale_potential],
+              ] as const)
+                .filter(([, v]) => Boolean(v))
+                .map(([label, v]) => (
+                  <div key={label}>
+                    <dt className="eyebrow">{label}</dt>
+                    <dd className="text-sm mt-0.5">{v}</dd>
+                  </div>
+                ))}
+            </dl>
+            {intelRecommendation.rationale && (
+              <p className="text-xs mt-3 leading-relaxed" style={{ color: 'var(--muted)' }}>
+                {intelRecommendation.rationale}
+              </p>
+            )}
+          </div>
+        </Section>
+      )}
+
+      {intelAdaptation && (
+        <Section title="Adaptation and pathway">
+          <div className="px-4 py-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              {intelAdaptation.adaptation_risk && (
+                <span
+                  className="badge"
+                  style={{
+                    background:
+                      intelAdaptation.adaptation_risk === 'HIGH'
+                        ? 'color-mix(in srgb, var(--color-conflict) 16%, transparent)'
+                        : intelAdaptation.adaptation_risk === 'LOW'
+                          ? 'color-mix(in srgb, var(--color-verified) 16%, transparent)'
+                          : 'color-mix(in srgb, var(--color-attention) 16%, transparent)',
+                  }}
+                >
+                  {intelAdaptation.adaptation_risk} risk
+                  {intelAdaptation.risk_score != null && ` · ${intelAdaptation.risk_score}/100`}
+                </span>
+              )}
+              {(intelAdaptation.from_competition_name || intelAdaptation.to_competition_name) && (
+                <span className="text-sm">
+                  {intelAdaptation.from_competition_name ?? '?'} → {intelAdaptation.to_competition_name ?? '?'}
+                </span>
+              )}
+            </div>
+            <dl className="grid gap-3 md:grid-cols-2 mt-3">
+              {([
+                ['Technical gap', intelAdaptation.technical_gap],
+                ['Competition gap', intelAdaptation.competition_gap],
+                ['Suggested next step', intelAdaptation.next_step],
+              ] as const)
+                .filter(([, v]) => Boolean(v))
+                .map(([label, v]) => (
+                  <div key={label}>
+                    <dt className="eyebrow">{label}</dt>
+                    <dd className="text-sm mt-0.5 leading-relaxed">{v}</dd>
+                  </div>
+                ))}
+            </dl>
+          </div>
+        </Section>
+      )}
+
+      {current.length > 0 && (
+        <Section title="Reports" subtitle={`${current.length} current`}>
+          {current.map((r) => (
+            <IntelReport key={r.id} report={r} />
+          ))}
+        </Section>
+      )}
+
+      {superseded.length > 0 && (
+        <Section title="Earlier versions" subtitle={`${superseded.length} superseded`}>
+          {superseded.map((r) => (
+            <IntelReport key={r.id} report={r} superseded />
+          ))}
+        </Section>
+      )}
+
+      {!intelRecommendation && !intelAdaptation && (intelReports ?? []).length === 0 && (
+        <div className="surface mx-4 md:mx-6 mt-3 px-4 py-10 text-center">
+          <p className="font-semibold text-sm">No external intelligence yet</p>
+          <p className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--muted)' }}>
+            Nothing has been submitted for this player. See
+            docs/AVENGERS_INTEL_CONTRACT.md for how intelligence reaches the platform.
+          </p>
+        </div>
+      )}
+    </>
+  );
+
   const notesPanel = (
     <Section
       title="Scouting"
@@ -644,6 +805,7 @@ export default async function PlayerProfile({ params }: { params: Promise<{ id: 
             { id: 'market', label: 'Market' },
             { id: 'career', label: 'Career' },
             { id: 'representation', label: 'Representation' },
+            { id: 'intel', label: 'AI Intelligence' },
             { id: 'notes', label: 'GBM Notes' },
           ]}
           panels={{
@@ -652,6 +814,7 @@ export default async function PlayerProfile({ params }: { params: Promise<{ id: 
             market: marketPanel,
             career: careerPanel,
             representation: representationPanel,
+            intel: intelPanel,
             notes: notesPanel,
           }}
         />
@@ -701,5 +864,74 @@ function MiniRating({ label, value }: { label: string; value: number | null }) {
       <div className="data text-sm font-semibold">{value ?? '—'}</div>
       <div className="eyebrow" style={{ fontSize: '0.5625rem' }}>{label}</div>
     </div>
+  );
+}
+
+/**
+ * One AI report. The source list is rendered rather than summarised: a claim
+ * is only as good as what was read to make it, and an empty list is the most
+ * important thing the reader can know about a report.
+ */
+function IntelReport({
+  report,
+  superseded = false,
+}: {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  report: any;
+  superseded?: boolean;
+}) {
+  const sections: Array<{ heading?: string; body?: string }> = Array.isArray(report.sections)
+    ? report.sections
+    : [];
+  const sources: Array<{ name?: string; url?: string; reliability?: number }> = Array.isArray(
+    report.sources,
+  )
+    ? report.sources
+    : [];
+
+  return (
+    <article
+      className="px-4 py-3"
+      style={{ borderBottom: '1px solid var(--border)', opacity: superseded ? 0.65 : 1 }}
+    >
+      <div className="flex items-baseline justify-between gap-3 flex-wrap">
+        <p className="font-semibold text-sm">{report.headline}</p>
+        <span className="eyebrow shrink-0">
+          {report.report_type} · v{report.version}
+          {report.model_name ? ` · ${report.model_name}` : ''}
+        </span>
+      </div>
+
+      {report.summary && (
+        <p className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--muted)' }}>
+          {report.summary}
+        </p>
+      )}
+
+      {sections.map((sec, i) => (
+        <div key={`${sec.heading ?? i}`} className="mt-2">
+          {sec.heading && <p className="eyebrow">{sec.heading}</p>}
+          {sec.body && <p className="text-xs mt-0.5 leading-relaxed">{sec.body}</p>}
+        </div>
+      ))}
+
+      <div className="mt-2 flex items-center gap-2 flex-wrap">
+        {report.confidence != null && (
+          <span className="opportunity text-[0.6875rem]">
+            confidence {Math.round(Number(report.confidence) * 100)}%
+          </span>
+        )}
+        {sources.length === 0 ? (
+          <span className="badge badge-attention">Opinion — no sources cited</span>
+        ) : (
+          sources.slice(0, 4).map((src, i) => (
+            <span key={`${src.name ?? i}`} className="badge badge-neutral">
+              {src.name ?? 'source'}
+              {src.reliability != null && ` ${Math.round(Number(src.reliability) * 100)}%`}
+            </span>
+          ))
+        )}
+      </div>
+    </article>
   );
 }
