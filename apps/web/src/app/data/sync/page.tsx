@@ -48,7 +48,7 @@ export default async function SyncStatusPage() {
     { data: runs, error },
     { count: tracked },
     { count: newsCount },
-    { data: agents },
+    { data: agents, error: agentsError },
     { data: submissions },
   ] = await Promise.all([
     supabase
@@ -107,7 +107,13 @@ export default async function SyncStatusPage() {
       <section className="px-4 md:px-6 mt-5">
         <h2 className="text-[0.9375rem] font-semibold tracking-tight mb-2">External intelligence</h2>
         <div className="card overflow-hidden">
-          {(agents ?? []).length === 0 ? (
+          {agentsError ? (
+            // "None registered" is a claim about the world. A read that failed
+            // cannot support it, and this page exists to distinguish the two.
+            <p className="p-4 text-sm" style={{ color: '#E0705B' }}>
+              Could not read the agent register — {agentsError.message}
+            </p>
+          ) : (agents ?? []).length === 0 ? (
             <p className="p-4 text-sm" style={{ color: 'var(--muted)' }}>
               No research agent is registered. See docs/AVENGERS_INTEL_CONTRACT.md to issue one.
             </p>
