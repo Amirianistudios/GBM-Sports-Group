@@ -197,11 +197,20 @@ still recorded when the competition is not in the database yet.
 ```json
 { "headline": "Club confirms contract extension",
   "summary": "…", "source_name": "RSC Anderlecht official",
-  "source_url": "https://…", "source_type": "CLUB_OFFICIAL",
+  "source_url": "https://…", "source_type": "OFFICIAL_CLUB",
   "category": "CONTRACT", "published_at": "2026-08-25T14:00:00Z",
   "confidence": 0.95, "reliability": 1.0,
   "impact": "HIGH", "impact_note": "Removes him from the free-agent list." }
 ```
+
+`source_type` must be one of `OFFICIAL_CLUB`, `FEDERATION`, `NEWS_MEDIA`,
+`SOCIAL`, `PROVIDER_API`, `RSS`, `DATASET`, `MANUAL`, `AI_RESEARCH`. Anything
+else is refused. Pick by **where the claim came from**, not by who fetched it:
+a newspaper the team read is `NEWS_MEDIA`, a post on X is `SOCIAL`, and
+`AI_RESEARCH` is reserved for material with no citable external source. That
+the AI team collected it is already recorded in `agent_id` on every row —
+`source_type` is not the place to say it again. Omit the field and it defaults
+to `AI_RESEARCH`.
 
 Two separate judgements, and conflating them is the usual mistake:
 
@@ -213,6 +222,10 @@ Two separate judgements, and conflating them is the usual mistake:
 
 Idempotent on `(player_id, content_hash)`; supply `content_hash` or one is
 derived from the URL and headline.
+
+News appears on the player profile under **Overview → News and signals**, not
+in the AI Intelligence tab: the same table also holds items from GBM's own
+hourly connectors, and each row states which of the two collected it.
 
 ### `PERFORMANCE` — season statistics
 
@@ -262,11 +275,33 @@ kept and shown rather than silently resolved.
 | `KIND_NOT_IN_AGENT_SCOPES` | This agent may not submit this kind. |
 | `UNKNOWN_KIND` | Valid kinds are returned in the response. |
 | `MISSING_SUBMISSION_KEY_OR_KIND` | Envelope incomplete. |
+| `MISSING_REQUIRED_FIELD` | A field with no sensible default was omitted. The response names it in `field`. |
 | `WRITE_FAILED` | The write raised; `detail` and `sqlstate` are included. |
 
 A bad payload returns a rejection rather than raising, so the caller always
 gets a machine-readable answer. Only "you are not a registered agent" raises
 (`42501`).
+
+### What is actually required
+
+Almost everything is optional — a field you omit is left NULL, or takes the
+column's default, and a later submission can fill it in. **Missing data stays
+missing; nothing is invented to satisfy a schema.** Only these must be present:
+
+| Kind | Required, beyond `player_id` | Why |
+|---|---|---|
+| `NEWS` | `source_name` | An item that does not say where it came from cannot be weighed. |
+| `FACT` | `fact_key` | A fact with no key cannot be compared against another source. |
+| all | `submission_key`, `kind` | The envelope. |
+
+Everything else falls back: `headline` → `"Untitled"`, `report_type` →
+`PROFILE`, `recommendation` → `UNDECIDED`, `source_type` → `AI_RESEARCH`,
+`language` → `en`, `published_at` → now, `content_hash` → derived from the URL
+and headline, `sections`/`sources` → `[]`, `advanced` → `{}`, a `FACT`'s
+`confidence` → `0.800`, and `source_provider` → your own provider code, which
+also switches the fact's state from `SOURCE_REPORTED` to `AI_ASSESSED`.
+
+A minimal payload is a valid payload for every kind — submit what you have.
 
 Every call is recorded in `intel_submissions` with its payload, so a number
 that looks wrong on a player profile can be traced to the submission that

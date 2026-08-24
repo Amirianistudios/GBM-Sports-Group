@@ -135,12 +135,16 @@ What those numbers mean:
 
 ### Migrations
 
-All thirteen migrations are applied to the hosted project, and the repository
-now reproduces the hosted schema exactly. Three had been applied directly to the
-database in an earlier session and existed in **no file** — `security_hardening`,
-`natural_key_constraints` and the intelligence views. They have been captured,
-so a database rebuilt from `supabase/migrations/` is no longer missing
-constraints and hardening the live one has.
+Every migration below is applied to the hosted project, and a database rebuilt
+from `supabase/migrations/` holds every object the live one does. Three had
+been applied directly to the database in an earlier session and existed in
+**no file** — `security_hardening`, `natural_key_constraints` and the
+intelligence views. They have been captured, so the repository is no longer
+missing constraints and hardening the live database has.
+
+The *names* are not one-for-one, and this section used to claim they were; see
+the reconciliation under the table for what the two lists actually contain and
+why they differ.
 
 | Migration | Purpose |
 |---|---|
@@ -167,9 +171,33 @@ constraints and hardening the live one has.
 | `20260825100000_search_and_filter_performance` | `v_position_options`, trigram index for wildcard search |
 | `20260825110000_write_policies_stop_taxing_reads` | Splits the `FOR ALL` policies off the read path (below) |
 | `20260825120000_rls_role_lookups_hoisted_to_initplan` | Wraps every role lookup so Postgres evaluates it once per statement (below) |
+| `20260826100000_ai_assessed_fact_state` | `AI_ASSESSED` fact state and the `AVENGERS_GROK` provider at priority 40 |
+| `20260826110000_external_intelligence_schema` | `intel_agents`, `intel_submissions`, `intel_reports`, `intel_recommendations`, `intel_adaptation_assessments`; reliability and impact on `player_news` |
+| `20260826120000_intel_submission_contract` | `gbm_intel_submit()`, `gbm_intel_resolve_player()`, `gbm_intel_current_agent()` |
+| `20260827100000_news_source_types_for_media_and_social` | `NEWS_MEDIA`, `SOCIAL`, `AI_RESEARCH` source types, and the guard that keeps the function's default legal |
+| `20260827110000_performance_submissions_without_a_heatmap` | Coalesces `player_season_stats.advanced` so a statistics submission need not carry one |
+| `20260827120000_minimal_payloads_survive_every_branch` | Coalesces `source_facts.confidence`; refuses `source_name` and `fact_key` by name |
+| `20260827130000_a_model_is_not_a_second_source` | Excludes `AI_ASSESSED` from `player_fact_conflicts`, so a model neither corroborates nor contradicts a provider |
 
-Verified against `supabase.list_migrations` on 2026-08-25: the hosted project
-reports the same set, in the same order, with nothing applied that has no file.
+Re-checked against `supabase.list_migrations` on 2026-08-27. **The two name
+lists are not identical, and the earlier claim here that they were was wrong.**
+The hosted project reports 35 migrations against 30 files. Seven applied names
+have no same-named file —
+
+`idempotency_constraints`, `intelligence_views`, `discovery_signals_growth_scale`,
+`lock_down_ingestion_functions`, `views_security_invoker`,
+`representation_view_identity_columns`, `gbm_role_values`
+
+— and two files have no same-named applied migration:
+`natural_key_constraints` and `harden_views_and_functions`. This is early-session
+consolidation, not lost schema: several small migrations were squashed into
+one file under a new name before the repo history settled, so the *effects* of
+all seven are present in the files (verified by grepping for each object each
+one creates). What is genuinely true is the weaker statement: **every object
+the hosted schema holds is created by some file in `supabase/migrations`.** A
+name-for-name match is not, and reconciling the names would mean rewriting
+history for no gain — but the two lists should not be described as the same
+set.
 
 ## Security
 
@@ -671,6 +699,147 @@ The player profile gained an **AI Intelligence** tab, separate from GBM Notes
 and from scouting reports, stating on every item who produced it and what it
 read. A report submitted with no sources is labelled "Opinion — no sources
 cited" rather than dressed as research.
+
+### The news path, and two faults found in it
+
+`player_news` was being written and never read: the table was only ever
+`count`ed, on the sync-status page. Every news item the external team filed —
+with the reliability and impact the brief asks for — would have been stored
+where nobody could see it. **Overview → News and signals** now renders it:
+headline, source (linked), date, summary, reliability, an impact badge, and
+the impact note. It sits on Overview rather than in the AI Intelligence tab
+because the same table also holds items from GBM's own hourly connectors, and
+that tab's disclaimer would misattribute them; each row instead says which of
+the two collected it.
+
+Surfacing it exposed two faults, both of which would have hit the external
+team on their first submission:
+
+- **The submit function's own default was illegal.** `gbm_intel_submit()`
+  defaults `source_type` to `AI_RESEARCH`, which the `player_news` CHECK
+  constraint did not allow. Every NEWS submission omitting the field — the
+  common case — was refused. The two live in different migrations, so neither
+  file was wrong on its own and nothing had exercised the path.
+- **News and social media had no source type.** The allowed set was written
+  for the hourly connectors (club, federation, provider API, RSS, dataset,
+  manual). A newspaper report or a post on X had to be filed as `RSS`, which
+  records the transport and loses the source — for a responsibility area whose
+  name is *news and social monitoring*.
+
+Migration 0029 adds `NEWS_MEDIA`, `SOCIAL` and `AI_RESEARCH`, and carries a
+guard that re-derives the function's default and fails if the constraint does
+not allow it. `intel-contract.test.ts` pins the same agreement in CI, and was
+confirmed to fail when the fault is reintroduced. Verified against production
+in a rolled-back transaction: a NEWS submission with no `source_type` is now
+`ACCEPTED` and stores `AI_RESEARCH`; `NEWS_MEDIA` and `SOCIAL` are accepted;
+an invalid value is still `REJECTED`.
+
+The contract document had shipped the invalid value `CLUB_OFFICIAL` in its
+NEWS example — the constraint says `OFFICIAL_CLUB` — so copying the documented
+example would have failed. Corrected, with the full allowed list beside it.
+
+### The same mistake, three times
+
+Finding one bug in an untested branch was reason to exercise the others.
+`PERFORMANCE` and `FACT` had never been run, and both were broken in exactly
+the way `NEWS` was: **a column that is `not null default <x>`, handed an
+explicit NULL.** Naming a column in an INSERT and giving it NULL does not fall
+back to the DEFAULT — Postgres raises. Each branch worked whenever the
+optional field happened to be present, and failed on the ordinary payload that
+omitted it:
+
+| Branch | Column | Effect |
+|---|---|---|
+| `NEWS` | `player_news.source_type` (`AI_RESEARCH` not in the CHECK) | every submission omitting `source_type` refused |
+| `PERFORMANCE` | `player_season_stats.advanced` (`not null default '{}'`) | every submission without a heatmap refused |
+| `FACT` | `source_facts.confidence` (`not null default 0.800`) | every submission without an explicit confidence refused |
+
+The first `PERFORMANCE` test happened to include a heatmap and the first
+`FACT` test happened to include a confidence, which is why both looked fine.
+
+Rather than wait to trip over a fourth, every not-null column these branches
+write was checked against the expression supplying it. The rest are safe:
+`player_id`, `agent_id`, `entity_type` and `provider_code` come from the
+caller's identity or a coalesce; `headline`, `report_type`, `recommendation`,
+`content_hash`, `sections` and `sources` already coalesced; `is_current`,
+`version`, `created_at` and `retrieved_at` take defaults or literals.
+
+Two columns are genuinely required and have no default —
+`player_news.source_name` and `source_facts.fact_key`. Neither may be
+invented, so both are now refused by name with `MISSING_REQUIRED_FIELD` and a
+reason, instead of surfacing a Postgres constraint message as `WRITE_FAILED`.
+
+Migrations 0030 and 0031 carry the fixes and a guard each that re-reads the
+installed function. Six `it.each` cases in `intel-contract.test.ts` pin the
+coalesces and the required-field checks; all three were confirmed to fail when
+the faults are reintroduced. Verified against production, rolled back:
+
+```
+REPORT{}=ACCEPTED; REC{}=ACCEPTED; ADAPT{}=ACCEPTED; PERF{}=ACCEPTED;
+NEWS{}=REJECTED/MISSING_REQUIRED_FIELD/source_name; NEWS{source_name}=ACCEPTED;
+FACT{}=REJECTED/MISSING_REQUIRED_FIELD/fact_key; FACT{fact_key}=ACCEPTED;
+fact confidence default = 0.800; fact state = AI_ASSESSED
+```
+
+`PERFORMANCE` was also checked for idempotency: resubmitting the same natural
+key updated in place (one row, `goals` 7 → 9, `matches_played` preserved at 20)
+rather than duplicating. Nothing persisted — 7,848 players, and the single
+pre-existing connector news row, untouched.
+
+**The lesson worth keeping:** a branch nobody has run is not "probably fine".
+All three of these would have surfaced as the external team's first
+submissions failing, on the platform's own contract, with the platform
+appearing to work.
+
+### A model is not a second source
+
+A `FACT` submission lands in `source_facts` next to the providers, and two
+surfaces read that table without asking what kind of row they were looking at:
+
+- The **corroboration stripe** on the player header counts rows per fact key.
+  A model that read Transfermarkt and repeated its value would have become a
+  second source agreeing with Transfermarkt — one source shown as two, on the
+  exact surface a scout uses to judge how well attested a number is.
+- **`player_fact_conflicts`** reports a conflict wherever the distinct values
+  exceed one. A model that got a value wrong would have raised *"Sources
+  disagree"* against the site it was summarising, presenting its own error as
+  a disagreement between two providers.
+
+Both were written when every row in `source_facts` came from a provider, so
+grouping them all was the same as grouping providers. That stopped being true
+the moment the AI team could write there. Migration 0032 excludes
+`AI_ASSESSED` from the view and `factSources()` excludes it from the count.
+Nothing is discarded — the row stays in `source_facts`, and
+`provider_fact_priority` still decides what is displayed. It simply does not
+get a vote on whether two providers agree.
+
+Proven against production, rolled back:
+
+```
+one provider                 -> conflicts=0
+AI repeats it                -> corroborating sources=1 (not 2), rows retained=2
+AI disagrees                 -> conflicts=0
+two providers disagree       -> conflicts=1, listing FBREF and TRANSFERMARKT only
+```
+
+The view kept `security_invoker=on` and stayed unreadable by `anon` across the
+replace; the migration asserts both rather than assuming them, because this
+view was one of the five that leaked to `anon` before 0007.
+
+### Making the path observable
+
+`CLAUDE.md` holds ingestion to being idempotent *and observable*. The
+submission contract was idempotent from the start, but nothing on the platform
+showed it working — an agent whose submissions were all being rejected looked
+exactly like an agent that had sent nothing, which is precisely the state the
+four faults above would have produced.
+
+**Sync status** now carries an *External intelligence* block: registered
+agents with their scopes and when each was last seen, and the last 25
+submissions with kind, outcome and, where refused, the reason. The reason is
+the point — a bare count would have hidden every one of those faults.
+`DUPLICATE` is shown neutrally rather than as a failure, because a retry
+returning the first answer is the contract working as designed.
 
 **Open for GBM:** issue the agent's Supabase account and set its `scopes`
 (start with `NEWS` and `REPORT`), and decide whether AI recommendations should

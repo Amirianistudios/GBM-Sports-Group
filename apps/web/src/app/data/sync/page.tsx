@@ -44,7 +44,13 @@ function nextHourlyRun(): string {
 export default async function SyncStatusPage() {
   const supabase = await createClient();
 
-  const [{ data: runs, error }, { count: tracked }, { count: newsCount }] = await Promise.all([
+  const [
+    { data: runs, error },
+    { count: tracked },
+    { count: newsCount },
+    { data: agents, error: agentsError },
+    { data: submissions },
+  ] = await Promise.all([
     supabase
       .from('ingestion_runs')
       .select(
@@ -55,6 +61,20 @@ export default async function SyncStatusPage() {
       .limit(60),
     supabase.from('gbm_portfolio').select('player_id', { count: 'exact', head: true }),
     supabase.from('player_news').select('id', { count: 'exact', head: true }),
+
+    // The external intelligence path is an ingestion path, so it is held to
+    // the same rule as the rest: every attempt is recorded and shown. Without
+    // this, an agent whose submissions are all being rejected looks exactly
+    // like an agent that has sent nothing.
+    supabase
+      .from('intel_agents')
+      .select('agent_code, display_name, is_active, scopes, last_seen_at')
+      .order('agent_code'),
+    supabase
+      .from('intel_submissions')
+      .select('id, kind, status, error, received_at')
+      .order('received_at', { ascending: false })
+      .limit(25),
   ]);
 
   if (error) console.error(`[sync] runs read failed — ${error.message}`);
@@ -81,6 +101,81 @@ export default async function SyncStatusPage() {
           <Stat label="Portfolio players" value={tracked ?? 0} />
           <Stat label="News items stored" value={newsCount ?? 0} />
           <Stat label="Next hourly run" value={nextHourlyRun()} small />
+        </div>
+      </section>
+
+      <section className="px-4 md:px-6 mt-5">
+        <h2 className="text-[0.9375rem] font-semibold tracking-tight mb-2">External intelligence</h2>
+        <div className="card overflow-hidden">
+          {agentsError ? (
+            // "None registered" is a claim about the world. A read that failed
+            // cannot support it, and this page exists to distinguish the two.
+            <p className="p-4 text-sm" style={{ color: '#E0705B' }}>
+              Could not read the agent register — {agentsError.message}
+            </p>
+          ) : (agents ?? []).length === 0 ? (
+            <p className="p-4 text-sm" style={{ color: 'var(--muted)' }}>
+              No research agent is registered. See docs/AVENGERS_INTEL_CONTRACT.md to issue one.
+            </p>
+          ) : (
+            (agents ?? []).map((a) => (
+              <div
+                key={a.agent_code}
+                className="px-4 py-2.5 flex items-center gap-3"
+                style={{ borderBottom: '1px solid var(--border)' }}
+              >
+                <StatusDot status={a.is_active ? 'SUCCESS' : 'FAILED'} />
+                <span className="text-sm font-medium flex-1 truncate">
+                  {a.display_name}
+                  {/* The dot is decorative, so "disabled" is said in words too. */}
+                  {!a.is_active && <span className="badge badge-neutral ml-2">disabled</span>}
+                  <span className="data text-xs ml-2" style={{ color: 'var(--muted)' }}>
+                    {/* An empty scopes array means every kind is permitted. */}
+                    {(a.scopes ?? []).length > 0 ? (a.scopes ?? []).join(', ') : 'all kinds'}
+                  </span>
+                </span>
+                <span className="data text-xs w-32 text-right" style={{ color: 'var(--muted)' }}>
+                  {a.last_seen_at ? freshness(a.last_seen_at, { verb: '' }).label.trim() : 'never seen'}
+                </span>
+              </div>
+            ))
+          )}
+
+          {(submissions ?? []).length > 0 && (
+            <>
+              <p className="px-4 pt-3 pb-1 eyebrow">Last {(submissions ?? []).length} submissions</p>
+              {(submissions ?? []).map((s) => (
+                <div
+                  key={s.id}
+                  className="px-4 py-2 flex items-center gap-3"
+                  style={{ borderBottom: '1px solid var(--border)' }}
+                >
+                  {/* DUPLICATE is neither success nor failure — a safe retry —
+                      so it falls through to the neutral dot. */}
+                  <StatusDot
+                    status={
+                      s.status === 'ACCEPTED'
+                        ? 'SUCCESS'
+                        : s.status === 'DUPLICATE'
+                          ? 'DUPLICATE'
+                          : 'FAILED'
+                    }
+                  />
+                  <span className="text-sm flex-1 truncate">
+                    {s.kind}
+                    {/* The reason a submission was refused is the whole value of
+                        showing it — a bare count would hide a broken payload. */}
+                    {s.error && (
+                      <span className="data text-xs ml-2" style={{ color: '#E0705B' }}>{s.error}</span>
+                    )}
+                  </span>
+                  <span className="data text-xs w-32 text-right" style={{ color: 'var(--muted)' }}>
+                    {freshness(s.received_at, { verb: '' }).label.trim()}
+                  </span>
+                </div>
+              ))}
+            </>
+          )}
         </div>
       </section>
 
