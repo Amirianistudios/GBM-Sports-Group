@@ -197,11 +197,20 @@ still recorded when the competition is not in the database yet.
 ```json
 { "headline": "Club confirms contract extension",
   "summary": "…", "source_name": "RSC Anderlecht official",
-  "source_url": "https://…", "source_type": "CLUB_OFFICIAL",
+  "source_url": "https://…", "source_type": "OFFICIAL_CLUB",
   "category": "CONTRACT", "published_at": "2026-08-25T14:00:00Z",
   "confidence": 0.95, "reliability": 1.0,
   "impact": "HIGH", "impact_note": "Removes him from the free-agent list." }
 ```
+
+`source_type` must be one of `OFFICIAL_CLUB`, `FEDERATION`, `NEWS_MEDIA`,
+`SOCIAL`, `PROVIDER_API`, `RSS`, `DATASET`, `MANUAL`, `AI_RESEARCH`. Anything
+else is refused. Pick by **where the claim came from**, not by who fetched it:
+a newspaper the team read is `NEWS_MEDIA`, a post on X is `SOCIAL`, and
+`AI_RESEARCH` is reserved for material with no citable external source. That
+the AI team collected it is already recorded in `agent_id` on every row —
+`source_type` is not the place to say it again. Omit the field and it defaults
+to `AI_RESEARCH`.
 
 Two separate judgements, and conflating them is the usual mistake:
 
@@ -213,6 +222,10 @@ Two separate judgements, and conflating them is the usual mistake:
 
 Idempotent on `(player_id, content_hash)`; supply `content_hash` or one is
 derived from the URL and headline.
+
+News appears on the player profile under **Overview → News and signals**, not
+in the AI Intelligence tab: the same table also holds items from GBM's own
+hourly connectors, and each row states which of the two collected it.
 
 ### `PERFORMANCE` — season statistics
 

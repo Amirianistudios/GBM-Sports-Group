@@ -167,9 +167,30 @@ constraints and hardening the live one has.
 | `20260825100000_search_and_filter_performance` | `v_position_options`, trigram index for wildcard search |
 | `20260825110000_write_policies_stop_taxing_reads` | Splits the `FOR ALL` policies off the read path (below) |
 | `20260825120000_rls_role_lookups_hoisted_to_initplan` | Wraps every role lookup so Postgres evaluates it once per statement (below) |
+| `20260826100000_ai_assessed_fact_state` | `AI_ASSESSED` fact state and the `AVENGERS_GROK` provider at priority 40 |
+| `20260826110000_external_intelligence_schema` | `intel_agents`, `intel_submissions`, `intel_reports`, `intel_recommendations`, `intel_adaptation_assessments`; reliability and impact on `player_news` |
+| `20260826120000_intel_submission_contract` | `gbm_intel_submit()`, `gbm_intel_resolve_player()`, `gbm_intel_current_agent()` |
+| `20260827100000_news_source_types_for_media_and_social` | `NEWS_MEDIA`, `SOCIAL`, `AI_RESEARCH` source types, and the guard that keeps the function's default legal |
 
-Verified against `supabase.list_migrations` on 2026-08-25: the hosted project
-reports the same set, in the same order, with nothing applied that has no file.
+Re-checked against `supabase.list_migrations` on 2026-08-27. **The two name
+lists are not identical, and the earlier claim here that they were was wrong.**
+The hosted project reports 32 migrations against 27 files. Seven applied names
+have no same-named file —
+
+`idempotency_constraints`, `intelligence_views`, `discovery_signals_growth_scale`,
+`lock_down_ingestion_functions`, `views_security_invoker`,
+`representation_view_identity_columns`, `gbm_role_values`
+
+— and two files have no same-named applied migration:
+`natural_key_constraints` and `harden_views_and_functions`. This is early-session
+consolidation, not lost schema: several small migrations were squashed into
+one file under a new name before the repo history settled, so the *effects* of
+all seven are present in the files (verified by grepping for each object each
+one creates). What is genuinely true is the weaker statement: **every object
+the hosted schema holds is created by some file in `supabase/migrations`.** A
+name-for-name match is not, and reconciling the names would mean rewriting
+history for no gain — but the two lists should not be described as the same
+set.
 
 ## Security
 
@@ -671,6 +692,44 @@ The player profile gained an **AI Intelligence** tab, separate from GBM Notes
 and from scouting reports, stating on every item who produced it and what it
 read. A report submitted with no sources is labelled "Opinion — no sources
 cited" rather than dressed as research.
+
+### The news path, and two faults found in it
+
+`player_news` was being written and never read: the table was only ever
+`count`ed, on the sync-status page. Every news item the external team filed —
+with the reliability and impact the brief asks for — would have been stored
+where nobody could see it. **Overview → News and signals** now renders it:
+headline, source (linked), date, summary, reliability, an impact badge, and
+the impact note. It sits on Overview rather than in the AI Intelligence tab
+because the same table also holds items from GBM's own hourly connectors, and
+that tab's disclaimer would misattribute them; each row instead says which of
+the two collected it.
+
+Surfacing it exposed two faults, both of which would have hit the external
+team on their first submission:
+
+- **The submit function's own default was illegal.** `gbm_intel_submit()`
+  defaults `source_type` to `AI_RESEARCH`, which the `player_news` CHECK
+  constraint did not allow. Every NEWS submission omitting the field — the
+  common case — was refused. The two live in different migrations, so neither
+  file was wrong on its own and nothing had exercised the path.
+- **News and social media had no source type.** The allowed set was written
+  for the hourly connectors (club, federation, provider API, RSS, dataset,
+  manual). A newspaper report or a post on X had to be filed as `RSS`, which
+  records the transport and loses the source — for a responsibility area whose
+  name is *news and social monitoring*.
+
+Migration 0029 adds `NEWS_MEDIA`, `SOCIAL` and `AI_RESEARCH`, and carries a
+guard that re-derives the function's default and fails if the constraint does
+not allow it. `intel-contract.test.ts` pins the same agreement in CI, and was
+confirmed to fail when the fault is reintroduced. Verified against production
+in a rolled-back transaction: a NEWS submission with no `source_type` is now
+`ACCEPTED` and stores `AI_RESEARCH`; `NEWS_MEDIA` and `SOCIAL` are accepted;
+an invalid value is still `REJECTED`.
+
+The contract document had shipped the invalid value `CLUB_OFFICIAL` in its
+NEWS example — the constraint says `OFFICIAL_CLUB` — so copying the documented
+example would have failed. Corrected, with the full allowed list beside it.
 
 **Open for GBM:** issue the agent's Supabase account and set its `scopes`
 (start with `NEWS` and `REPORT`), and decide whether AI recommendations should

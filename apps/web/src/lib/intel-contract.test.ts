@@ -99,4 +99,46 @@ describe('external intelligence contract', () => {
   it('keeps the submission ledger unique per agent and key, so retries are safe', () => {
     expect(sql).toContain('unique (agent_id, submission_key)');
   });
+
+  it('defaults news source_type to a value the table actually allows', () => {
+    // These live in two different migrations, so neither file is wrong on its
+    // own and no amount of reading one catches the disagreement. When they
+    // drifted, every NEWS submission that omitted source_type was refused with
+    // a constraint error instead of being stored.
+    const files = readdirSync(MIGRATIONS)
+      .filter((f) => f.endsWith('.sql'))
+      .sort();
+
+    const contract = readFileSync(
+      join(MIGRATIONS, '20260826120000_intel_submission_contract.sql'),
+      'utf8',
+    );
+    const fallback = contract.match(/coalesce\(v_data->>'source_type', '([A-Z_]+)'\)/);
+    expect(fallback, 'the NEWS branch no longer defaults source_type').not.toBeNull();
+
+    // The last migration to define the constraint is the one in force.
+    let allowed: string[] | null = null;
+    for (const f of files) {
+      const m = readFileSync(join(MIGRATIONS, f), 'utf8').match(
+        /check\s*\(source_type in \(([^)]*)\)\)/i,
+      );
+      if (m) allowed = [...m[1].matchAll(/'([A-Z_]+)'/g)].map((x) => x[1]);
+    }
+    expect(allowed, 'no CHECK on player_news.source_type found').not.toBeNull();
+
+    expect(
+      allowed,
+      `gbm_intel_submit() defaults source_type to '${fallback![1]}', which the CHECK does not ` +
+        `allow. Every NEWS submission omitting the field would be rejected.`,
+    ).toContain(fallback![1]);
+  });
+
+  it('gives news and social media a source_type of their own', () => {
+    // The brief's third responsibility area is news and social monitoring.
+    // Without these, a newspaper report has to be filed as 'RSS' and a post as
+    // 'MANUAL', which records the transport and loses the source.
+    for (const value of ['NEWS_MEDIA', 'SOCIAL']) {
+      expect(sql, `no source_type for ${value}`).toContain(`'${value}'`);
+    }
+  });
 });

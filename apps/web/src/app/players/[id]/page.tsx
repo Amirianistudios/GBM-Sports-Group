@@ -96,6 +96,7 @@ export default async function PlayerProfile({ params }: { params: Promise<{ id: 
     { data: intelReports },
     { data: intelRecommendation },
     { data: intelAdaptation },
+    { data: news },
   ] = await Promise.all([
     supabase.from('player_external_ids').select('*').eq('player_id', id),
     supabase.from('market_values').select('valued_on, value_amount, provider_code').eq('player_id', id).order('valued_on'),
@@ -150,6 +151,17 @@ export default async function PlayerProfile({ params }: { params: Promise<{ id: 
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle(),
+
+    // News reaches this table from two directions — the hourly connectors and
+    // the external AI team — so it is read here rather than inside the AI tab,
+    // and each row says which one collected it.
+    supabase
+      .from('player_news')
+      .select('id, headline, summary, source_name, source_url, source_type, category, published_at, discovered_at, reliability, impact, impact_note, agent_id')
+      .eq('player_id', id)
+      .order('published_at', { ascending: false, nullsFirst: false })
+      .order('discovered_at', { ascending: false })
+      .limit(12),
   ]);
 
   const club = Array.isArray(player.clubs) ? player.clubs[0] : player.clubs;
@@ -315,6 +327,55 @@ export default async function PlayerProfile({ params }: { params: Promise<{ id: 
           ))}
           {(externalIds ?? []).length === 0 && (
             <p className="text-sm" style={{ color: 'var(--muted)' }}>No provider identities linked yet.</p>
+          )}
+        </div>
+      </Section>
+
+      <Section
+        title="News and signals"
+        subtitle={(news ?? []).length > 0 ? `${(news ?? []).length} most recent` : undefined}
+      >
+        <div className="p-4">
+          {(news ?? []).length === 0 ? (
+            <p className="text-sm" style={{ color: 'var(--muted)' }}>
+              Nothing collected about this player yet.
+            </p>
+          ) : (
+            <ul className="space-y-3">
+              {(news ?? []).map((n) => (
+                <li key={n.id} className="pb-3" style={{ borderBottom: '1px solid var(--border)' }}>
+                  <div className="flex items-start gap-2 flex-wrap">
+                    {n.impact && <ImpactBadge impact={n.impact} />}
+                    <p className="text-sm font-semibold flex-1 min-w-[12rem]">{n.headline}</p>
+                  </div>
+                  {n.summary && (
+                    <p className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--muted)' }}>
+                      {n.summary}
+                    </p>
+                  )}
+                  {n.impact_note && (
+                    <p className="text-xs mt-1 leading-relaxed">
+                      <span className="eyebrow">What it means</span> {n.impact_note}
+                    </p>
+                  )}
+                  <p className="data text-xs mt-1.5" style={{ color: 'var(--muted)' }}>
+                    {n.source_url ? (
+                      <a href={n.source_url} target="_blank" rel="noopener noreferrer">
+                        {n.source_name} ↗
+                      </a>
+                    ) : (
+                      n.source_name
+                    )}
+                    {' · '}
+                    {formatDate(n.published_at ?? n.discovered_at)}
+                    {n.reliability != null && ` · source reliability ${Math.round(Number(n.reliability) * 100)}%`}
+                    {/* Origin, not provenance: the source is named above; this says
+                        who fetched it, which is what tells a scout how to read it. */}
+                    {n.agent_id != null && ' · collected by the AI research team'}
+                  </p>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
       </Section>
@@ -865,6 +926,24 @@ function MiniRating({ label, value }: { label: string; value: number | null }) {
       <div className="eyebrow" style={{ fontSize: '0.5625rem' }}>{label}</div>
     </div>
   );
+}
+
+/**
+ * What a story would mean for GBM if it is true — the field that decides
+ * whether anyone gets called. Carries its own word, not colour alone, so it
+ * survives a colourblind reader and a printout.
+ */
+function ImpactBadge({ impact }: { impact: string }) {
+  // The design system's badge modifiers already pair each tint with a text
+  // tone that clears contrast in both themes; picking colours here would
+  // quietly undo that.
+  const cls =
+    impact === 'CRITICAL' || impact === 'HIGH'
+      ? 'badge-conflict'
+      : impact === 'MEDIUM'
+        ? 'badge-attention'
+        : 'badge-neutral';
+  return <span className={`badge ${cls}`}>{impact}</span>;
 }
 
 /**
