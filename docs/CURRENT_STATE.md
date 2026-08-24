@@ -618,6 +618,64 @@ Wikidata was tried first and does not hold this portfolio; see
 [`PLAYER_IMAGES.md`](PLAYER_IMAGES.md) for what was found and why one
 year-precision date of birth was deliberately not imported.
 
+## External AI intelligence — the Avengers on Grok Bot integration (2026-08-26)
+
+An external AI scouting team feeds structured intelligence into the platform
+through one function. The full specification, written to be handed to that
+team, is [`AVENGERS_INTEL_CONTRACT.md`](AVENGERS_INTEL_CONTRACT.md).
+
+**Most of the brief was already modelled.** `player_season_stats` already
+carried xG, xA, shots, key passes, progressive passes and carries, dribbles,
+duels, aerial duels, tackles, interceptions, clearances, touches in box, saves
+and clean sheets, plus an `advanced` jsonb for heatmaps; `player_news` already
+held news with source and confidence; profiles, contracts, valuations,
+transfers and representation all had homes. Building a parallel schema for any
+of that would have split the record in two, so the team writes into the
+existing tables with provenance. Only three things genuinely had nowhere to
+live: versioned AI reports, recruitment judgements, and adaptation analysis.
+
+**The decision that shapes the design is the priority.** `AVENGERS_GROK` sits
+at **40**, below every primary source it can cite — Transfermarkt 85, Wyscout
+95, GBM's own knowledge 100. An AI summarising Transfermarkt must not outrank
+Transfermarkt. Its value is in the judgement layer, where nothing competes with
+it, not in overwriting the record. A test reads the migration and fails if that
+priority is ever raised above 50; it was confirmed to fail at 90.
+
+**The agent can write and cannot read.** It is deliberately not an
+organisation member, so `gbm_is_member()` is false and every read policy
+refuses it. Verified against production: a caller outside
+`organization_members` sees **0 rows** in `players`, `gbm_portfolio`,
+`player_guardians`, `scouting_reports`, `market_values` and the intel tables —
+while `gbm_intel_submit()`, being SECURITY DEFINER, writes normally. An
+external system that can contribute intelligence does not thereby gain the
+ability to read a minor's guardian contact.
+
+**It never creates a player.** A submission naming someone the database does
+not hold is rejected with `UNRESOLVED_PLAYER`. `players.id` is a GBM UUID and
+the identity graph is not extended by an external model.
+
+**Claims about the canonical record are assertions, not writes.** A market
+value the team reads on Transfermarkt becomes a `source_facts` row attributed
+to `TRANSFERMARKT`, where `provider_fact_priority` decides what is displayed
+and a disagreement between sources is kept and shown. Where the team is
+reasoning rather than quoting, the new `AI_ASSESSED` fact state records that,
+so a model's conclusion is never rendered as a verified fact.
+
+Verified end to end in a rolled-back transaction: refuses an unresolved player,
+accepts a report, returns `DUPLICATE` on a retry with the same submission key,
+supersedes correctly (2 versions, 1 current), accepts recommendations and
+adaptation assessments, and rejects an unknown kind with the list of valid
+ones. Nothing persisted — 7,848 players before and after.
+
+The player profile gained an **AI Intelligence** tab, separate from GBM Notes
+and from scouting reports, stating on every item who produced it and what it
+read. A report submitted with no sources is labelled "Opinion — no sources
+cited" rather than dressed as research.
+
+**Open for GBM:** issue the agent's Supabase account and set its `scopes`
+(start with `NEWS` and `REPORT`), and decide whether AI recommendations should
+appear immediately or pass through a review queue first.
+
 ## Provider research
 
 Nine external sources were assessed on 2026-08-19 — see
