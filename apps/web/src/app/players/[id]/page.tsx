@@ -170,7 +170,16 @@ export default async function PlayerProfile({ params }: { params: Promise<{ id: 
   const conflictKeys = new Set((conflicts ?? []).map((c) => c.fact_key));
   const flag = countryFlag(nationality?.name);
 
-  const factSources = (key: string) => (facts ?? []).filter((f) => f.fact_key === key).length;
+  /**
+   * How many sources assert this fact — the number behind the corroboration
+   * stripe. `AI_ASSESSED` rows are excluded: the external research team reads
+   * the same sites the providers do, so counting its assertion as a second
+   * source would turn one source into two and show corroboration that does not
+   * exist. Its contribution is visible in the AI Intelligence tab, where
+   * nothing is competing with it.
+   */
+  const factSources = (key: string) =>
+    (facts ?? []).filter((f) => f.fact_key === key && f.state !== 'AI_ASSESSED').length;
 
   const contractMonths = monthsUntil(contract?.expires_on);
   const latestValue = (marketValues ?? []).length

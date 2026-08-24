@@ -135,12 +135,16 @@ What those numbers mean:
 
 ### Migrations
 
-All thirteen migrations are applied to the hosted project, and the repository
-now reproduces the hosted schema exactly. Three had been applied directly to the
-database in an earlier session and existed in **no file** — `security_hardening`,
-`natural_key_constraints` and the intelligence views. They have been captured,
-so a database rebuilt from `supabase/migrations/` is no longer missing
-constraints and hardening the live one has.
+Every migration below is applied to the hosted project, and a database rebuilt
+from `supabase/migrations/` holds every object the live one does. Three had
+been applied directly to the database in an earlier session and existed in
+**no file** — `security_hardening`, `natural_key_constraints` and the
+intelligence views. They have been captured, so the repository is no longer
+missing constraints and hardening the live database has.
+
+The *names* are not one-for-one, and this section used to claim they were; see
+the reconciliation under the table for what the two lists actually contain and
+why they differ.
 
 | Migration | Purpose |
 |---|---|
@@ -173,10 +177,11 @@ constraints and hardening the live one has.
 | `20260827100000_news_source_types_for_media_and_social` | `NEWS_MEDIA`, `SOCIAL`, `AI_RESEARCH` source types, and the guard that keeps the function's default legal |
 | `20260827110000_performance_submissions_without_a_heatmap` | Coalesces `player_season_stats.advanced` so a statistics submission need not carry one |
 | `20260827120000_minimal_payloads_survive_every_branch` | Coalesces `source_facts.confidence`; refuses `source_name` and `fact_key` by name |
+| `20260827130000_a_model_is_not_a_second_source` | Excludes `AI_ASSESSED` from `player_fact_conflicts`, so a model neither corroborates nor contradicts a provider |
 
 Re-checked against `supabase.list_migrations` on 2026-08-27. **The two name
 lists are not identical, and the earlier claim here that they were was wrong.**
-The hosted project reports 34 migrations against 29 files. Seven applied names
+The hosted project reports 35 migrations against 30 files. Seven applied names
 have no same-named file —
 
 `idempotency_constraints`, `intelligence_views`, `discovery_signals_growth_scale`,
@@ -785,6 +790,41 @@ pre-existing connector news row, untouched.
 All three of these would have surfaced as the external team's first
 submissions failing, on the platform's own contract, with the platform
 appearing to work.
+
+### A model is not a second source
+
+A `FACT` submission lands in `source_facts` next to the providers, and two
+surfaces read that table without asking what kind of row they were looking at:
+
+- The **corroboration stripe** on the player header counts rows per fact key.
+  A model that read Transfermarkt and repeated its value would have become a
+  second source agreeing with Transfermarkt — one source shown as two, on the
+  exact surface a scout uses to judge how well attested a number is.
+- **`player_fact_conflicts`** reports a conflict wherever the distinct values
+  exceed one. A model that got a value wrong would have raised *"Sources
+  disagree"* against the site it was summarising, presenting its own error as
+  a disagreement between two providers.
+
+Both were written when every row in `source_facts` came from a provider, so
+grouping them all was the same as grouping providers. That stopped being true
+the moment the AI team could write there. Migration 0032 excludes
+`AI_ASSESSED` from the view and `factSources()` excludes it from the count.
+Nothing is discarded — the row stays in `source_facts`, and
+`provider_fact_priority` still decides what is displayed. It simply does not
+get a vote on whether two providers agree.
+
+Proven against production, rolled back:
+
+```
+one provider                 -> conflicts=0
+AI repeats it                -> corroborating sources=1 (not 2), rows retained=2
+AI disagrees                 -> conflicts=0
+two providers disagree       -> conflicts=1, listing FBREF and TRANSFERMARKT only
+```
+
+The view kept `security_invoker=on` and stayed unreadable by `anon` across the
+replace; the migration asserts both rather than assuming them, because this
+view was one of the five that leaked to `anon` before 0007.
 
 **Open for GBM:** issue the agent's Supabase account and set its `scopes`
 (start with `NEWS` and `REPORT`), and decide whether AI recommendations should

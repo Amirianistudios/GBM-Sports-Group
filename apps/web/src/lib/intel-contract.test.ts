@@ -171,6 +171,30 @@ describe('external intelligence contract', () => {
       ).toBe(true);
     });
 
+    it('does not let a model count as a source that agrees or disagrees', () => {
+      // AI assertions land in source_facts alongside providers. If the
+      // conflicts view counts them, a model repeating Transfermarkt turns one
+      // source into two on the corroboration stripe, and a model getting it
+      // wrong shows as Transfermarkt disagreeing with itself.
+      const files = readdirSync(MIGRATIONS)
+        .filter((f) => f.endsWith('.sql'))
+        .sort();
+
+      let view: string | null = null;
+      for (const f of files) {
+        const text = readFileSync(join(MIGRATIONS, f), 'utf8');
+        const start = text.indexOf('create or replace view player_fact_conflicts');
+        if (start === -1) continue;
+        view = text.slice(start, text.indexOf(';', start));
+      }
+      expect(view, 'no migration defines player_fact_conflicts').not.toBeNull();
+      expect(
+        view,
+        'player_fact_conflicts counts AI_ASSESSED rows as sources, so a model would ' +
+          'corroborate or contradict the site it summarised',
+      ).toContain('AI_ASSESSED');
+    });
+
     it('refuses a genuinely required field by name rather than by constraint error', () => {
       // source_name and fact_key are NOT NULL with no default, so there is
       // nothing to fall back to and nothing may be invented — a news item with
