@@ -275,11 +275,33 @@ kept and shown rather than silently resolved.
 | `KIND_NOT_IN_AGENT_SCOPES` | This agent may not submit this kind. |
 | `UNKNOWN_KIND` | Valid kinds are returned in the response. |
 | `MISSING_SUBMISSION_KEY_OR_KIND` | Envelope incomplete. |
+| `MISSING_REQUIRED_FIELD` | A field with no sensible default was omitted. The response names it in `field`. |
 | `WRITE_FAILED` | The write raised; `detail` and `sqlstate` are included. |
 
 A bad payload returns a rejection rather than raising, so the caller always
 gets a machine-readable answer. Only "you are not a registered agent" raises
 (`42501`).
+
+### What is actually required
+
+Almost everything is optional — a field you omit is left NULL, or takes the
+column's default, and a later submission can fill it in. **Missing data stays
+missing; nothing is invented to satisfy a schema.** Only these must be present:
+
+| Kind | Required, beyond `player_id` | Why |
+|---|---|---|
+| `NEWS` | `source_name` | An item that does not say where it came from cannot be weighed. |
+| `FACT` | `fact_key` | A fact with no key cannot be compared against another source. |
+| all | `submission_key`, `kind` | The envelope. |
+
+Everything else falls back: `headline` → `"Untitled"`, `report_type` →
+`PROFILE`, `recommendation` → `UNDECIDED`, `source_type` → `AI_RESEARCH`,
+`language` → `en`, `published_at` → now, `content_hash` → derived from the URL
+and headline, `sections`/`sources` → `[]`, `advanced` → `{}`, a `FACT`'s
+`confidence` → `0.800`, and `source_provider` → your own provider code, which
+also switches the fact's state from `SOURCE_REPORTED` to `AI_ASSESSED`.
+
+A minimal payload is a valid payload for every kind — submit what you have.
 
 Every call is recorded in `intel_submissions` with its payload, so a number
 that looks wrong on a player profile can be traced to the submission that

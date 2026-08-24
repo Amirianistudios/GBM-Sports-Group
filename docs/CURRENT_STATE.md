@@ -171,10 +171,12 @@ constraints and hardening the live one has.
 | `20260826110000_external_intelligence_schema` | `intel_agents`, `intel_submissions`, `intel_reports`, `intel_recommendations`, `intel_adaptation_assessments`; reliability and impact on `player_news` |
 | `20260826120000_intel_submission_contract` | `gbm_intel_submit()`, `gbm_intel_resolve_player()`, `gbm_intel_current_agent()` |
 | `20260827100000_news_source_types_for_media_and_social` | `NEWS_MEDIA`, `SOCIAL`, `AI_RESEARCH` source types, and the guard that keeps the function's default legal |
+| `20260827110000_performance_submissions_without_a_heatmap` | Coalesces `player_season_stats.advanced` so a statistics submission need not carry one |
+| `20260827120000_minimal_payloads_survive_every_branch` | Coalesces `source_facts.confidence`; refuses `source_name` and `fact_key` by name |
 
 Re-checked against `supabase.list_migrations` on 2026-08-27. **The two name
 lists are not identical, and the earlier claim here that they were was wrong.**
-The hosted project reports 32 migrations against 27 files. Seven applied names
+The hosted project reports 34 migrations against 29 files. Seven applied names
 have no same-named file —
 
 `idempotency_constraints`, `intelligence_views`, `discovery_signals_growth_scale`,
@@ -730,6 +732,59 @@ an invalid value is still `REJECTED`.
 The contract document had shipped the invalid value `CLUB_OFFICIAL` in its
 NEWS example — the constraint says `OFFICIAL_CLUB` — so copying the documented
 example would have failed. Corrected, with the full allowed list beside it.
+
+### The same mistake, three times
+
+Finding one bug in an untested branch was reason to exercise the others.
+`PERFORMANCE` and `FACT` had never been run, and both were broken in exactly
+the way `NEWS` was: **a column that is `not null default <x>`, handed an
+explicit NULL.** Naming a column in an INSERT and giving it NULL does not fall
+back to the DEFAULT — Postgres raises. Each branch worked whenever the
+optional field happened to be present, and failed on the ordinary payload that
+omitted it:
+
+| Branch | Column | Effect |
+|---|---|---|
+| `NEWS` | `player_news.source_type` (`AI_RESEARCH` not in the CHECK) | every submission omitting `source_type` refused |
+| `PERFORMANCE` | `player_season_stats.advanced` (`not null default '{}'`) | every submission without a heatmap refused |
+| `FACT` | `source_facts.confidence` (`not null default 0.800`) | every submission without an explicit confidence refused |
+
+The first `PERFORMANCE` test happened to include a heatmap and the first
+`FACT` test happened to include a confidence, which is why both looked fine.
+
+Rather than wait to trip over a fourth, every not-null column these branches
+write was checked against the expression supplying it. The rest are safe:
+`player_id`, `agent_id`, `entity_type` and `provider_code` come from the
+caller's identity or a coalesce; `headline`, `report_type`, `recommendation`,
+`content_hash`, `sections` and `sources` already coalesced; `is_current`,
+`version`, `created_at` and `retrieved_at` take defaults or literals.
+
+Two columns are genuinely required and have no default —
+`player_news.source_name` and `source_facts.fact_key`. Neither may be
+invented, so both are now refused by name with `MISSING_REQUIRED_FIELD` and a
+reason, instead of surfacing a Postgres constraint message as `WRITE_FAILED`.
+
+Migrations 0030 and 0031 carry the fixes and a guard each that re-reads the
+installed function. Six `it.each` cases in `intel-contract.test.ts` pin the
+coalesces and the required-field checks; all three were confirmed to fail when
+the faults are reintroduced. Verified against production, rolled back:
+
+```
+REPORT{}=ACCEPTED; REC{}=ACCEPTED; ADAPT{}=ACCEPTED; PERF{}=ACCEPTED;
+NEWS{}=REJECTED/MISSING_REQUIRED_FIELD/source_name; NEWS{source_name}=ACCEPTED;
+FACT{}=REJECTED/MISSING_REQUIRED_FIELD/fact_key; FACT{fact_key}=ACCEPTED;
+fact confidence default = 0.800; fact state = AI_ASSESSED
+```
+
+`PERFORMANCE` was also checked for idempotency: resubmitting the same natural
+key updated in place (one row, `goals` 7 → 9, `matches_played` preserved at 20)
+rather than duplicating. Nothing persisted — 7,848 players, and the single
+pre-existing connector news row, untouched.
+
+**The lesson worth keeping:** a branch nobody has run is not "probably fine".
+All three of these would have surfaced as the external team's first
+submissions failing, on the platform's own contract, with the platform
+appearing to work.
 
 **Open for GBM:** issue the agent's Supabase account and set its `scopes`
 (start with `NEWS` and `REPORT`), and decide whether AI recommendations should
