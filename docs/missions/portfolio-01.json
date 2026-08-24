@@ -1,0 +1,383 @@
+{
+  "mission": "portfolio-01",
+  "generated_against": "production 2026-08-24",
+  "rules": {
+    "fill_empty_only": true,
+    "never_overwrite": true,
+    "attribute_to_source_not_fetcher": true,
+    "image_requires_credit": true,
+    "position_vocabulary": "Transfermarkt title case",
+    "foot_unknown_is_missing": true
+  },
+  "players": [
+    {
+      "full_name": "Ardit Bala",
+      "player_id": "12bacb84-6fcb-4037-9206-b39e2487f2d5",
+      "transfermarkt_url": "https://www.transfermarkt.com/ardit-bala/profil/spieler/1024762",
+      "identity_fields_missing": [
+        "picture",
+        "weight",
+        "birthplace",
+        "shirt"
+      ],
+      "submissions_needed": [
+        "IDENTITY",
+        "CAREER",
+        "TRANSFER",
+        "CONTRACT",
+        "VALUATION",
+        "REPRESENTATION",
+        "INJURY",
+        "PERFORMANCE",
+        "NEWS",
+        "REPORT"
+      ],
+      "needs_identification_first": false
+    },
+    {
+      "full_name": "Giorgi Kavlashvili",
+      "player_id": "80cc04b5-7d66-4b17-aeca-033323bd5d65",
+      "transfermarkt_url": "https://www.transfermarkt.com/-/profil/spieler/1193791",
+      "identity_fields_missing": [
+        "weight",
+        "birthplace",
+        "shirt"
+      ],
+      "submissions_needed": [
+        "IDENTITY",
+        "CAREER",
+        "INJURY",
+        "REPORT"
+      ],
+      "needs_identification_first": false
+    },
+    {
+      "full_name": "Giorgi Kutsia",
+      "player_id": "f75d6236-5010-4da0-b560-7bffc677ebc4",
+      "transfermarkt_url": "https://www.transfermarkt.com/-/profil/spieler/412615",
+      "identity_fields_missing": [
+        "weight",
+        "shirt"
+      ],
+      "submissions_needed": [
+        "IDENTITY",
+        "CAREER",
+        "INJURY",
+        "REPORT"
+      ],
+      "needs_identification_first": false
+    },
+    {
+      "full_name": "Giorgi Lagvilava",
+      "player_id": "2dad002b-c89d-4147-9552-92b9665294bb",
+      "transfermarkt_url": "https://www.transfermarkt.com/giorgi-lagvilava/profil/spieler/1330100",
+      "identity_fields_missing": [
+        "picture",
+        "height",
+        "weight",
+        "foot",
+        "birthplace",
+        "shirt"
+      ],
+      "submissions_needed": [
+        "IDENTITY",
+        "CAREER",
+        "TRANSFER",
+        "CONTRACT",
+        "VALUATION",
+        "REPRESENTATION",
+        "INJURY",
+        "PERFORMANCE",
+        "NEWS",
+        "REPORT"
+      ],
+      "needs_identification_first": false
+    },
+    {
+      "full_name": "Giorgi Peradze",
+      "player_id": "f81aef9e-a827-4833-9dd0-5edad8fcbb2f",
+      "transfermarkt_url": null,
+      "identity_fields_missing": [
+        "picture",
+        "dob",
+        "nationality",
+        "height",
+        "weight",
+        "foot",
+        "club",
+        "birthplace",
+        "shirt"
+      ],
+      "submissions_needed": [
+        "IDENTITY",
+        "CAREER",
+        "TRANSFER",
+        "CONTRACT",
+        "VALUATION",
+        "REPRESENTATION",
+        "INJURY",
+        "PERFORMANCE",
+        "NEWS",
+        "REPORT"
+      ],
+      "needs_identification_first": true
+    },
+    {
+      "full_name": "Jajá",
+      "player_id": "d20f5f1f-e975-4293-8edd-5f189578b2cd",
+      "transfermarkt_url": null,
+      "identity_fields_missing": [
+        "picture",
+        "dob",
+        "nationality",
+        "height",
+        "weight",
+        "foot",
+        "club",
+        "birthplace",
+        "shirt"
+      ],
+      "submissions_needed": [
+        "IDENTITY",
+        "CAREER",
+        "TRANSFER",
+        "CONTRACT",
+        "VALUATION",
+        "REPRESENTATION",
+        "INJURY",
+        "PERFORMANCE",
+        "NEWS",
+        "REPORT"
+      ],
+      "needs_identification_first": true
+    },
+    {
+      "full_name": "Matthijs Boonen",
+      "player_id": "a11a7113-d561-4797-8515-5959e820582f",
+      "transfermarkt_url": "https://www.transfermarkt.com/matthijs-boonen/profil/spieler/1452998",
+      "identity_fields_missing": [
+        "picture",
+        "weight",
+        "birthplace",
+        "shirt"
+      ],
+      "submissions_needed": [
+        "IDENTITY",
+        "CAREER",
+        "TRANSFER",
+        "CONTRACT",
+        "VALUATION",
+        "REPRESENTATION",
+        "INJURY",
+        "PERFORMANCE",
+        "NEWS",
+        "REPORT"
+      ],
+      "needs_identification_first": false
+    },
+    {
+      "full_name": "Matti Van De Gehuchte",
+      "player_id": "58f4a6a6-dfeb-413c-bc04-9e5852160667",
+      "transfermarkt_url": "https://www.transfermarkt.com/matti-van-de-gehuchte/profil/spieler/1346226",
+      "identity_fields_missing": [
+        "picture",
+        "weight",
+        "birthplace",
+        "shirt"
+      ],
+      "submissions_needed": [
+        "IDENTITY",
+        "CAREER",
+        "TRANSFER",
+        "CONTRACT",
+        "VALUATION",
+        "REPRESENTATION",
+        "INJURY",
+        "PERFORMANCE",
+        "NEWS",
+        "REPORT"
+      ],
+      "needs_identification_first": false
+    },
+    {
+      "full_name": "Michiel Lindner",
+      "player_id": "1a34a59c-788f-4359-8d5d-249622927b15",
+      "transfermarkt_url": "https://www.transfermarkt.com/michiel-lindner/profil/spieler/1450867",
+      "identity_fields_missing": [
+        "picture",
+        "height",
+        "weight",
+        "foot",
+        "birthplace",
+        "shirt"
+      ],
+      "submissions_needed": [
+        "IDENTITY",
+        "CAREER",
+        "TRANSFER",
+        "CONTRACT",
+        "VALUATION",
+        "REPRESENTATION",
+        "INJURY",
+        "PERFORMANCE",
+        "NEWS",
+        "REPORT"
+      ],
+      "needs_identification_first": false
+    },
+    {
+      "full_name": "Mimoun Ahrika",
+      "player_id": "f3384c57-79ac-4ca1-8e4d-7210c9218f15",
+      "transfermarkt_url": null,
+      "identity_fields_missing": [
+        "picture",
+        "dob",
+        "nationality",
+        "height",
+        "weight",
+        "foot",
+        "club",
+        "birthplace",
+        "shirt"
+      ],
+      "submissions_needed": [
+        "IDENTITY",
+        "CAREER",
+        "TRANSFER",
+        "CONTRACT",
+        "VALUATION",
+        "REPRESENTATION",
+        "INJURY",
+        "PERFORMANCE",
+        "NEWS",
+        "REPORT"
+      ],
+      "needs_identification_first": true
+    },
+    {
+      "full_name": "Nika Khatoyan",
+      "player_id": "b4399bc2-770c-455a-8ac7-419248bdcd7e",
+      "transfermarkt_url": "https://www.transfermarkt.com/nika-khatoyan/profil/spieler/1330090",
+      "identity_fields_missing": [
+        "picture",
+        "weight",
+        "birthplace",
+        "shirt"
+      ],
+      "submissions_needed": [
+        "IDENTITY",
+        "CAREER",
+        "TRANSFER",
+        "CONTRACT",
+        "VALUATION",
+        "REPRESENTATION",
+        "INJURY",
+        "PERFORMANCE",
+        "NEWS",
+        "REPORT"
+      ],
+      "needs_identification_first": false
+    },
+    {
+      "full_name": "Rezi Jikia",
+      "player_id": "3d5f2a27-125c-4a7b-a01e-b5c3e5c5316a",
+      "transfermarkt_url": null,
+      "identity_fields_missing": [
+        "picture",
+        "height",
+        "weight",
+        "foot",
+        "birthplace",
+        "shirt"
+      ],
+      "submissions_needed": [
+        "IDENTITY",
+        "CAREER",
+        "TRANSFER",
+        "CONTRACT",
+        "VALUATION",
+        "REPRESENTATION",
+        "INJURY",
+        "PERFORMANCE",
+        "NEWS",
+        "REPORT"
+      ],
+      "needs_identification_first": true
+    },
+    {
+      "full_name": "Saba Asanidze",
+      "player_id": "cf04c29b-d681-42fb-a1dd-ecd3c7a59c27",
+      "transfermarkt_url": "https://www.transfermarkt.com/saba-asanidze/profil/spieler/1193800",
+      "identity_fields_missing": [
+        "picture",
+        "height",
+        "weight",
+        "foot",
+        "birthplace",
+        "shirt"
+      ],
+      "submissions_needed": [
+        "IDENTITY",
+        "CAREER",
+        "TRANSFER",
+        "CONTRACT",
+        "VALUATION",
+        "REPRESENTATION",
+        "INJURY",
+        "PERFORMANCE",
+        "NEWS",
+        "REPORT"
+      ],
+      "needs_identification_first": false
+    },
+    {
+      "full_name": "Saba Gegiadze",
+      "player_id": "3b756657-d7aa-4957-87c2-a8d1b7bcd96b",
+      "transfermarkt_url": "https://www.transfermarkt.com/saba-gegiadze/profil/spieler/809897",
+      "identity_fields_missing": [
+        "picture",
+        "weight",
+        "birthplace",
+        "shirt"
+      ],
+      "submissions_needed": [
+        "IDENTITY",
+        "CAREER",
+        "TRANSFER",
+        "CONTRACT",
+        "VALUATION",
+        "REPRESENTATION",
+        "INJURY",
+        "PERFORMANCE",
+        "NEWS",
+        "REPORT"
+      ],
+      "needs_identification_first": false
+    },
+    {
+      "full_name": "Tornike Dzotsenidze",
+      "player_id": "18a80b95-61dc-4b56-b408-d1e8392c0a2d",
+      "transfermarkt_url": "https://www.transfermarkt.com/tornike-dzotsenidze/profil/spieler/465622",
+      "identity_fields_missing": [
+        "picture",
+        "weight",
+        "foot",
+        "birthplace",
+        "shirt"
+      ],
+      "submissions_needed": [
+        "IDENTITY",
+        "CAREER",
+        "TRANSFER",
+        "CONTRACT",
+        "VALUATION",
+        "REPRESENTATION",
+        "INJURY",
+        "PERFORMANCE",
+        "NEWS",
+        "REPORT"
+      ],
+      "needs_identification_first": false
+    }
+  ]
+}
