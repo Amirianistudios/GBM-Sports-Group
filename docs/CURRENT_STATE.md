@@ -826,6 +826,21 @@ The view kept `security_invoker=on` and stayed unreadable by `anon` across the
 replace; the migration asserts both rather than assuming them, because this
 view was one of the five that leaked to `anon` before 0007.
 
+### Making the path observable
+
+`CLAUDE.md` holds ingestion to being idempotent *and observable*. The
+submission contract was idempotent from the start, but nothing on the platform
+showed it working — an agent whose submissions were all being rejected looked
+exactly like an agent that had sent nothing, which is precisely the state the
+four faults above would have produced.
+
+**Sync status** now carries an *External intelligence* block: registered
+agents with their scopes and when each was last seen, and the last 25
+submissions with kind, outcome and, where refused, the reason. The reason is
+the point — a bare count would have hidden every one of those faults.
+`DUPLICATE` is shown neutrally rather than as a failure, because a retry
+returning the first answer is the contract working as designed.
+
 **Open for GBM:** issue the agent's Supabase account and set its `scopes`
 (start with `NEWS` and `REPORT`), and decide whether AI recommendations should
 appear immediately or pass through a review queue first.
