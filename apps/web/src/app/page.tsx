@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { AppShell } from '@/components/app-shell';
 import { PlayerPhoto } from '@/components/player-photo';
-import { cachedPlayerColumns, fromCachedPlayer, monthsAhead, todayIso } from '@/lib/card-data';
+import { cachedPlayerColumns, fromCachedPlayer } from '@/lib/card-data';
 import { countryFlag } from '@/lib/flags';
 import { formatCurrency, positionCode, trend } from '@/lib/format';
 import { getTranslator, type Translate } from '@/lib/i18n';
@@ -47,10 +47,11 @@ export default async function DashboardPage() {
   const { t } = await getTranslator();
   const cachedCols = cachedPlayerColumns(false);
 
+  // The four stat numbers come back as one RPC answer instead of four count
+  // round-trips — and the alert stat is the real unread count, not the length
+  // of the 3-row preview list below it (which could never exceed three).
   const [
-    { count: playerCount },
-    { count: portfolioCount },
-    { count: expiringCount },
+    { data: summary },
     { data: alerts },
     priority,
     opportunities,
@@ -58,13 +59,7 @@ export default async function DashboardPage() {
     movement,
     { data: activity },
   ] = await Promise.all([
-    supabase.from('players').select('*', { count: 'exact', head: true }),
-    supabase.from('gbm_portfolio').select('*', { count: 'exact', head: true }),
-    supabase
-      .from('players')
-      .select('*', { count: 'exact', head: true })
-      .gte('cached_contract_expires', todayIso())
-      .lte('cached_contract_expires', monthsAhead(6)),
+    supabase.rpc('gbm_dashboard_summary'),
     supabase
       .from('alerts')
       .select('id, title, body, severity, created_at')
@@ -116,18 +111,20 @@ export default async function DashboardPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const portfolioRows = (r: { data: unknown }) => (r.data ?? []) as any[] as Row[];
 
+  const stats = (summary ?? {}) as Record<string, number>;
+  const playerCount = stats.players_total ?? 0;
+  const portfolioCount = stats.portfolio_total ?? 0;
+  const expiringCount = stats.contracts_expiring_6mo ?? 0;
+  const alertCount = stats.unread_alerts ?? (alerts ?? []).length;
+
   return (
     <AppShell eyebrow={t('brand.org')} title={t('dash.title')}>
       <section className="px-4 md:px-6 pt-4">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <Stat label={t('dash.stat.represented')} value={portfolioCount ?? 0} href="/portfolio" />
-          <Stat label={t('dash.stat.expiring')} value={expiringCount ?? 0} href="/radar" accent />
-          <Stat label={t('dash.stat.tracked')} value={playerCount ?? 0} href="/players" />
-          <Stat
-            label={t('dash.stat.alerts')}
-            value={(alerts ?? []).length}
-            accent={(alerts ?? []).length > 0}
-          />
+          <Stat label={t('dash.stat.represented')} value={portfolioCount} href="/portfolio" />
+          <Stat label={t('dash.stat.expiring')} value={expiringCount} href="/radar" accent />
+          <Stat label={t('dash.stat.tracked')} value={playerCount} href="/players" />
+          <Stat label={t('dash.stat.alerts')} value={alertCount} accent={alertCount > 0} />
         </div>
       </section>
 

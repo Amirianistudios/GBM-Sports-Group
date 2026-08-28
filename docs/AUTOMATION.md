@@ -22,8 +22,9 @@ past RLS runs on a runner.
 | `data-refresh` | `0 3 * * 3` | Transfermarkt dataset import, capped at 2,000 in GBM priority order | players, stats, values, transfers, contracts |
 | `reep-enrich` | `0 5 * * 4` | resolves identities against the Reep register | `player_external_ids` |
 | `data-import-trigger` | marker file on `main` | staged import by hand | as `data-refresh` |
+| `merge-recovery` | marker file / dispatch — deliberately unscheduled | targeted re-ingestion for the merge survivors | same tables, restricted to the queue's players; one `merge_recovery_attempts` row per survivor |
 
-All four data workflows share `concurrency: gbm-ingestion`, so they queue
+All the data workflows share `concurrency: gbm-ingestion`, so they queue
 rather than overlap. They write the same tables and the caches derived from
 them; two at once would interleave.
 
@@ -40,6 +41,18 @@ Runs `ingest:preflight` first — a missing service key fails in seconds rather
 than after the register has been downloaded and scanned — and `quality:check`
 afterwards, because new provider ids change which players have coverage.
 
+### merge-recovery, added 2026-08-28
+
+Unscheduled on purpose: recovery is a bounded operation over a known cohort
+(the 46 players in `v_merge_recovery_queue`), not a feed. Each run re-imports
+everything the Transfermarkt dataset holds for the anchored survivors through
+the standard natural-key upserts and writes one `merge_recovery_attempts` row
+per player with before/after coverage. Re-running is safe but should be a
+decision — a PARTIAL outcome means something blocked a row and repetition
+alone will not unblock it. Run #1 (2026-08-28): 46 attempted, 36 RECOVERED,
+10 MANUAL_REVIEW, zero rows gained — the details are in
+[`MERGE_RECOVERY.md`](MERGE_RECOVERY.md).
+
 ## Starting a run by hand
 
 The GitHub App that opens pull requests here cannot call `workflow_dispatch`,
@@ -48,6 +61,7 @@ so each data workflow also watches a marker file:
     .github/reep-trigger            → reep-enrich
     .github/intelligence-trigger    → hourly-intelligence-refresh
     .github/import-trigger          → data-import-trigger
+    .github/recovery-trigger        → merge-recovery
 
 Touching one on `main` starts that workflow. `workflow_dispatch` also works for
 anyone whose token carries `actions:write`.

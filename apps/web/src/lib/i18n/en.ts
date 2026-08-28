@@ -43,10 +43,38 @@ export const en = {
   'nav.sync': 'Sync Status',
   'nav.quality': 'Data Quality',
   'nav.settings': 'Settings',
+  'nav.representation': 'Representation',
   'nav.signout': 'Sign out',
   'nav.menu': 'Menu',
   'nav.watch': 'Watch',
   'nav.primary': 'Primary',
+
+  // ------------------------------------------------------------ global search --
+  'search.button': 'Search',
+  'search.placeholder': 'Search players by name…',
+  'search.empty': 'No players match',
+  'search.hint': 'Jump straight to any player in the database.',
+
+  // ----------------------------------------------------------------- discover --
+  'discover.intro':
+    'Ranked by the GBM opportunity model — age, target markets, realistic values, minutes and contract windows. Every score explains itself on the player’s profile.',
+  'discover.markets.gbm': 'GBM markets',
+  'discover.markets.all': 'Everywhere',
+  'discover.top': 'Top opportunities',
+  'discover.top.sub': 'Highest GBM fit right now',
+  'discover.emerging': 'Emerging talent',
+  'discover.emerging.sub': 'More under-24s at €5m or less, beyond those above',
+  'discover.contract': 'Contract window closing',
+  'discover.contract.sub': 'Further under-30s inside the final 18 months',
+  'discover.newest': 'New in GBM markets',
+  'discover.newest.sub': 'Most recently added target-market players',
+  'discover.openAll': 'Open the full database with filters →',
+  'discover.empty': 'Nothing in this market yet — the population grows as target-market imports land.',
+  'discover.presets': 'Quick starts',
+  'discover.preset.u21': 'U21, value rising',
+  'discover.preset.contract': 'Contract ending, U28',
+  'discover.preset.noagency': 'No agency listed',
+  'discover.preset.minutes': 'Young, playing weekly',
 
   // -------------------------------------------------------------- dashboard --
   'dash.title': 'Dashboard',
@@ -162,6 +190,7 @@ export const en = {
   'common.save': 'Save',
   'common.cancel': 'Cancel',
   'common.back': 'Back',
+  'common.loading': 'Loading…',
   'common.justNow': 'just now',
   'common.minutesAgo': '{count} min ago',
   'common.hoursAgo': '{count} h ago',

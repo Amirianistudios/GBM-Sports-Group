@@ -98,19 +98,22 @@ export default async function RequirementPage({
     query = query.lte('contract_expires_on', in12.toISOString().slice(0, 10));
   }
 
-  const { data: candidates, count, error } = await query;
+  // The candidate page and the facet scan are independent — running them in
+  // series made this the slowest route in the app with the least feedback.
+  const [{ data: candidates, count, error }, { data: facetRows }] = await Promise.all([
+    query,
+    // Facet options come from the scored set, so a filter never offers a
+    // value that would return nothing.
+    supabase
+      .from('v_recruitment_shortlist')
+      .select('primary_position, nationality, league_name, foot')
+      .eq('recruitment_request_id', id)
+      .limit(2000),
+  ]);
   if (error) console.error(`[recruitment] candidates read failed — ${error.message}`);
 
   const rows = candidates ?? [];
   const total = count ?? 0;
-
-  // Facet options come from the scored set, so a filter never offers a value
-  // that would return nothing.
-  const { data: facetRows } = await supabase
-    .from('v_recruitment_shortlist')
-    .select('primary_position, nationality, league_name, foot')
-    .eq('recruitment_request_id', id)
-    .limit(2000);
 
   const facets = {
     position: uniq(facetRows?.map((r) => r.primary_position)),

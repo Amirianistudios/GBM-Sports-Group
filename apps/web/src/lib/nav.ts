@@ -39,6 +39,7 @@ export const NAV_GROUPS: Array<{
     items: [
       { href: '/recruitment', labelKey: 'nav.recruitment' },
       { href: '/portfolio', labelKey: 'nav.portfolio' },
+      { href: '/representation', labelKey: 'nav.representation' },
       { href: '/watchlists', labelKey: 'nav.watchlists' },
       { href: '/scouting', labelKey: 'nav.scouting' },
     ],
@@ -66,4 +67,18 @@ export type NavLabels = Record<string, string>;
 export function isActivePath(pathname: string, href: string): boolean {
   if (href === '/') return pathname === '/';
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+/**
+ * The single entry to highlight among sibling nav items: the longest matching
+ * href wins. Prefix matching alone lit both `/data` and `/data/sync` while on
+ * the sync page — two "current pages" at once.
+ */
+export function activeHref(pathname: string, hrefs: string[]): string | null {
+  let best: string | null = null;
+  for (const href of hrefs) {
+    if (!isActivePath(pathname, href)) continue;
+    if (best === null || href.length > best.length) best = href;
+  }
+  return best;
 }

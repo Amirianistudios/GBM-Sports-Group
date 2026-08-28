@@ -172,10 +172,14 @@ function severity(value: number, c: (typeof CHECKS)[number]): 'ok' | 'warn' | 'f
   return 'ok';
 }
 
+// Severity wears the platform's own palette — teal/ochre/brick, chosen over
+// green/amber/red so the states stay distinguishable for colour-blind
+// readers. (An earlier revision referenced undefined --good/--warn/--bad
+// tokens and always fell through to generic hexes that broke exactly that.)
 const TONE: Record<string, { dot: string; label: string }> = {
-  ok: { dot: 'var(--good, #4ade80)', label: 'clear' },
-  warn: { dot: 'var(--warn, #fbbf24)', label: 'look' },
-  fail: { dot: 'var(--bad, #f87171)', label: 'act' },
+  ok: { dot: 'var(--color-verified)', label: 'clear' },
+  warn: { dot: 'var(--color-attention)', label: 'look' },
+  fail: { dot: 'var(--color-conflict)', label: 'act' },
 };
 
 export default async function DataQualityPage() {
@@ -323,7 +327,7 @@ export default async function DataQualityPage() {
                   </thead>
                   <tbody>
                     {queue.map((r) => (
-                      <tr key={r.player_id} className="border-t" style={{ borderColor: 'var(--line)' }}>
+                      <tr key={r.player_id} className="border-t" style={{ borderColor: 'var(--border)' }}>
                         <td className="px-4 py-2">
                           <Link href={`/players/${r.player_id}`} className="hover:underline">
                             {r.full_name}

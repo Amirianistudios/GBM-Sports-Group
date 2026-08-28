@@ -2,10 +2,16 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { NAV_GROUPS, isActivePath, type NavLabels } from '@/lib/nav';
+import { NAV_GROUPS, activeHref, type NavLabels } from '@/lib/nav';
 
 export function SideNav({ labels }: { labels: NavLabels }) {
   const pathname = usePathname();
+  // Longest-match-wins across the whole map, so /data/sync lights only Sync
+  // Status, never Sync Status and Data Providers together.
+  const current = activeHref(
+    pathname,
+    NAV_GROUPS.flatMap((g) => g.items.map((i) => i.href)),
+  );
 
   return (
     <aside
@@ -38,7 +44,7 @@ export function SideNav({ labels }: { labels: NavLabels }) {
             </p>
             <ul>
               {group.items.map(({ href, labelKey }) => {
-                const active = isActivePath(pathname, href);
+                const active = href === current;
                 return (
                   <li key={href}>
                     <Link

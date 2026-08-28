@@ -7,9 +7,11 @@ export default async function Loading() {
   return (
     <AppShell eyebrow={t('brand.org')} title={t('dash.title')}>
       <SkeletonStatStrip />
-      <SkeletonFeedSection title="Rising players" />
-      <SkeletonFeedSection title="Emerging U21" />
-      <SkeletonFeedSection title="Contract opportunities" />
+      {/* The skeleton names the blocks the real page renders — a placeholder
+          announcing sections that never arrive reads as a broken page. */}
+      <SkeletonFeedSection title={t('dash.block.priority')} />
+      <SkeletonFeedSection title={t('dash.block.opportunities')} />
+      <SkeletonFeedSection title={t('dash.block.portfolio')} />
     </AppShell>
   );
 }

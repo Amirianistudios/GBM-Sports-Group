@@ -11,6 +11,57 @@ re-deriving the project. The audit that re-verified everything is
 plan now in flight is
 [`GBM_DATA_IMPLEMENTATION_PLAN.md`](GBM_DATA_IMPLEMENTATION_PLAN.md).
 
+## Phase B1.5 — the recovery gap closed, and measured (2026-08-28)
+
+The 46 merge survivors were assessed in B1 but never re-ingested; that gap is
+now closed and the answer is on record. `recovery:merged-players` (CLI command
+`recover`, workflow `merge-recovery`, migration 0048) re-imported everything
+the Transfermarkt dataset holds for the 37 anchored survivors through the
+standard natural-key upserts — 2,725,862 dataset rows scanned, 0 errors, run
+`merge_recovery` #1 SUCCESS in 34 seconds.
+
+**Outcome: 36 RECOVERED · 10 MANUAL_REVIEW · 0 PARTIAL · 0 NO_SOURCE_AVAILABLE
+— and zero rows were actually missing.** Every re-sent row already existed
+under its natural key. That is the measurement the destroyed audit never
+allowed: the old function deleted only on unique-key *collision*, i.e. only
+the duplicate's copy of a fact the survivor already held. The unique facts
+survived every one of the 46 merges; what is permanently unknowable is
+whether any deleted copy carried a different value. The 10 MANUAL_REVIEW
+players: nine hold only Avengers/Grok raw payloads (no Transfermarkt
+identity), one — Oybek Urmonjonov, tm `1109178` — is anchored but absent from
+the dataset. `v_merge_recovery_queue` now carries `recovery_state` per player,
+`merge_recovery_attempts` keeps every attempt's before/after, and the quality
+report separates the automatable remainder (0) from the human queue (10).
+Full reasoning: [`MERGE_RECOVERY.md`](MERGE_RECOVERY.md).
+
+## UX + performance pass (2026-08-28)
+
+Audited at 390/430/768/1440 with production data, then fixed what was
+measured — the findings and numbers live in
+[`UX_PERFORMANCE_AUDIT.md`](UX_PERFORMANCE_AUDIT.md) and
+[`PERFORMANCE.md`](PERFORMANCE.md). Headlines:
+
+- **Global search** — `/` or Cmd/Ctrl+K anywhere, riding the existing trigram
+  index (5.8 ms), ranked by the opportunity score.
+- **Performance advisor: 0 WARN/ERROR** (was 2). Migration 0049 dropped the
+  one genuinely-duplicate index, restructured `player_links`' doubled SELECT
+  policy without changing access, and added exactly four FK indexes, each
+  with a named consumer. The 31 "unused index" INFOs were deliberately left.
+- **Three row-cap lies fixed** (migration 0050): `/trends` now aggregates in
+  SQL over all 13,296 players instead of a silent 1,000-row sample;
+  `/data`'s provider coverage comes from `v_provider_id_counts`; the
+  dashboard's four stats are one `gbm_dashboard_summary()` call and the
+  alert count is real.
+- Clubs→players club filter actually filters now; Discover's market scoping
+  is honest (GBM markets default, "Everywhere" explicit) and translated in
+  all four languages, with preset chips into the full database; the player
+  filter drawer is a bottom sheet on phones and numeric filters commit on
+  Enter; profile tabs are a real tablist and no longer slide under the
+  mobile header; every route has a loading state and the app has
+  `error.tsx`/`not-found.tsx`; the "No agency listed" list chip carries its
+  caveat; the quality page's severity dots wear the platform palette instead
+  of undefined tokens.
+
 ## Phase B1 — the identity foundation (2026-08-28)
 
 **What is actually reachable**, probed rather than assumed: Reep, StatsBomb
@@ -124,8 +175,8 @@ modified; `CLAUDE.md` untouched.
 
 | | |
 |---|---:|
-| migration files in `supabase/migrations/` | **44** |
-| migration rows recorded in Supabase | **66** (65 distinct names) — see [`MIGRATION_LEDGER.md`](MIGRATION_LEDGER.md) |
+| migration files in `supabase/migrations/` | **44** at the merge; **49** after B1–B1.5 and the performance pass (0046–0050, each applied under its file name, so the ledger advanced in step) |
+| migration rows recorded in Supabase | **66** (65 distinct names) at the merge — see [`MIGRATION_LEDGER.md`](MIGRATION_LEDGER.md) |
 | applied names with no matching repo filename | **25** |
 | repo filenames never applied under that name | **3** |
 | live objects with no representation in the repo | **0** |

@@ -5164,6 +5164,14 @@ export type Database = {
           },
         ]
       }
+      v_provider_id_counts: {
+        Row: {
+          external_ids: number | null
+          players: number | null
+          provider_code: string | null
+        }
+        Relationships: []
+      }
       v_position_options: {
         Row: {
           position_name: string | null
@@ -5306,6 +5314,7 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["gbm_role"]
       }
+      gbm_dashboard_summary: { Args: never; Returns: Json }
       gbm_data_quality_report: { Args: never; Returns: Json }
       gbm_generate_shortlist: {
         Args: { p_request: string }
@@ -5392,6 +5401,7 @@ export type Database = {
         Args: { r: Database["public"]["Enums"]["gbm_role"] }
         Returns: number
       }
+      gbm_trends_report: { Args: never; Returns: Json }
     }
     Enums: {
       competition_gender: "MALE" | "FEMALE" | "MIXED" | "UNKNOWN"

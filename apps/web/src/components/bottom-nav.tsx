@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { NAV_GROUPS, isActivePath, type NavLabels } from '@/lib/nav';
+import { NAV_GROUPS, activeHref, isActivePath, type NavLabels } from '@/lib/nav';
 import type { MessageKey } from '@/lib/i18n/en';
 
 /**
@@ -30,13 +30,26 @@ export function BottomNav({ labels }: { labels: NavLabels }) {
     setMenuOpen(false);
   }
 
-  // While the sheet is open, the page behind must not scroll.
+  // While the sheet is open, the page behind must not scroll, and Escape
+  // closes it — the same exit a dialog owes every keyboard user.
   useEffect(() => {
     document.body.style.overflow = menuOpen ? 'hidden' : '';
+    if (!menuOpen) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setMenuOpen(false);
+    }
+    window.addEventListener('keydown', onKey);
     return () => {
       document.body.style.overflow = '';
+      window.removeEventListener('keydown', onKey);
     };
   }, [menuOpen]);
+
+  // Longest-match-wins inside the sheet, so /data/sync lights only itself.
+  const sheetCurrent = activeHref(
+    pathname,
+    NAV_GROUPS.flatMap((g) => g.items.map((i) => i.href)),
+  );
 
   const primaryHrefs = PRIMARY.map((p) => p.href);
   const menuActive = !primaryHrefs.some((h) => isActivePath(pathname, h));
@@ -77,7 +90,7 @@ export function BottomNav({ labels }: { labels: NavLabels }) {
                 <p className="eyebrow mb-1.5">{labels[group.headingKey]}</p>
                 <ul className="surface overflow-hidden">
                   {group.items.map(({ href, labelKey }) => {
-                    const active = isActivePath(pathname, href);
+                    const active = href === sheetCurrent;
                     return (
                       <li key={href} style={{ borderBottom: '1px solid var(--border)' }} className="last:border-b-0">
                         <Link

@@ -1,7 +1,8 @@
 # Data quality
 
-Thirteen checks, one function, one screen. Verified 2026-08-28 against project
-`tyzndcjuiffnyhluddce`.
+Fourteen checks, one function, one screen. Verified 2026-08-28 against project
+`tyzndcjuiffnyhluddce`; the two recovery checks re-verified the same day after
+the first `merge-recovery` run.
 
     select gbm_data_quality_report();
 
@@ -52,7 +53,8 @@ checked rather than assumed.
 |---|---|---:|
 | `cache_name_id_mismatch` | printed league and scored competition differ | 0 |
 | `unresolved_merge_conflicts` | archived rows awaiting review | 0 |
-| `merge_survivors_needing_reingest` | merge survivors below population coverage | **39** |
+| `merge_survivors_needing_reingest` | recovery still PENDING or PARTIAL — the part a re-run can act on | **39** → **0** after run #1 (0048 redefined it from the population-mean flag to the recovery state) |
+| `merge_recovery_manual_review` | recovery needs a person: only raw payloads remain, or the dataset does not know the id | **10** |
 
 ## What the first run found
 

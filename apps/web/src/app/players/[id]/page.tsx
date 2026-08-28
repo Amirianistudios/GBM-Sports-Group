@@ -99,10 +99,14 @@ export default async function PlayerProfile({ params }: { params: Promise<{ id: 
     { data: news },
   ] = await Promise.all([
     supabase.from('player_external_ids').select('*').eq('player_id', id),
-    supabase.from('market_values').select('valued_on, value_amount, provider_code').eq('player_id', id).order('valued_on'),
+    // Explicit bounds on the per-player history reads. The response cap would
+    // truncate them anyway at 1,000 — these limits state the real contract
+    // (a valuation curve beyond ~300 points adds pixels, not information) and
+    // keep the profile's payload predictable for well-documented players.
+    supabase.from('market_values').select('valued_on, value_amount, provider_code').eq('player_id', id).order('valued_on', { ascending: false }).limit(300),
     supabase.from('contracts').select('*').eq('player_id', id).order('updated_at', { ascending: false }).limit(1).maybeSingle(),
     supabase.from('v_player_representation').select('*').eq('player_id', id).maybeSingle(),
-    supabase.from('transfers').select('*').eq('player_id', id).order('transfer_date', { ascending: false }),
+    supabase.from('transfers').select('*').eq('player_id', id).order('transfer_date', { ascending: false }).limit(100),
     supabase.from('source_facts').select('*').eq('entity_id', id).eq('is_current', true),
     supabase.from('player_fact_conflicts').select('*').eq('player_id', id),
     supabase.from('discovery_signals').select('*').eq('player_id', id).eq('is_current', true).order('score', { ascending: false }),
@@ -111,12 +115,13 @@ export default async function PlayerProfile({ params }: { params: Promise<{ id: 
       .from('player_season_stats')
       .select('id, matches_played, minutes_played, goals, assists, yellow_cards, red_cards, seasons(name), competitions(name), clubs(name)')
       .eq('player_id', id),
-    supabase.from('player_injuries').select('*').eq('player_id', id).order('started_on', { ascending: false }),
+    supabase.from('player_injuries').select('*').eq('player_id', id).order('started_on', { ascending: false }).limit(50),
     supabase
       .from('scouting_reports')
       .select('*')
       .eq('player_id', id)
-      .order('observed_on', { ascending: false, nullsFirst: false }),
+      .order('observed_on', { ascending: false, nullsFirst: false })
+      .limit(50),
     supabase.from('scout_player_ratings').select('attribute, rating').eq('player_id', id),
     supabase
       .from('player_notes')
@@ -182,10 +187,15 @@ export default async function PlayerProfile({ params }: { params: Promise<{ id: 
     (facts ?? []).filter((f) => f.fact_key === key && f.state !== 'AI_ASSESSED').length;
 
   const contractMonths = monthsUntil(contract?.expires_on);
-  const latestValue = (marketValues ?? []).length
-    ? Number(marketValues![marketValues!.length - 1].value_amount)
+  // The query fetches newest-first so its limit keeps the RECENT 300; the
+  // chart and the trend arithmetic below expect chronological order.
+  const valueSeries = [...(marketValues ?? [])].sort(
+    (a, b) => a.valued_on.localeCompare(b.valued_on),
+  );
+  const latestValue = valueSeries.length
+    ? Number(valueSeries[valueSeries.length - 1].value_amount)
     : null;
-  const yearAgoValue = valueOneYearAgo(marketValues ?? []);
+  const yearAgoValue = valueOneYearAgo(valueSeries);
   const valueTrend =
     latestValue !== null && yearAgoValue !== null && yearAgoValue > 0
       ? trend(((latestValue - yearAgoValue) / yearAgoValue) * 100)
@@ -437,8 +447,8 @@ export default async function PlayerProfile({ params }: { params: Promise<{ id: 
 
   const marketPanel = (
     <>
-      <Section title="Market value" subtitle={`${marketValues?.length ?? 0} valuations`}>
-        <ValueChart points={(marketValues ?? []).map((m) => ({ valued_on: m.valued_on, value_amount: Number(m.value_amount) }))} />
+      <Section title="Market value" subtitle={`${valueSeries.length} valuations`}>
+        <ValueChart points={valueSeries.map((m) => ({ valued_on: m.valued_on, value_amount: Number(m.value_amount) }))} />
       </Section>
 
       <Section title="Contract">

@@ -5,7 +5,7 @@ import { getTranslator } from '@/lib/i18n';
 export default async function Loading() {
   const { t } = await getTranslator();
   return (
-    <AppShell eyebrow={t('nav.players')} title={t('login.loading')}>
+    <AppShell eyebrow={t('nav.players')} title={t('common.loading')}>
       <section className="px-4 md:px-6 pt-3">
         <div className="card p-4 md:p-5">
           <div className="flex items-start gap-4">

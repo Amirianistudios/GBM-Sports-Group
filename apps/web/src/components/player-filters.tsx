@@ -1,15 +1,19 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { leagueLabel } from '@/lib/format';
 
 /**
  * Search + filter drawer.
  *
- * On mobile the filters live behind a sheet: a scout typing a name one-handed
- * should not have to scroll past twelve selects to reach the results. On
- * desktop the same controls sit inline.
+ * On phones the sixteen controls open as a bottom sheet — anchored to the
+ * thumb, scrollable, dismissed by Done, backdrop or Escape — instead of an
+ * inline block that shoved the results off screen. On md+ the same controls
+ * sit inline, where there is room for them.
+ *
+ * Numeric inputs commit on Enter as well as blur: typing "21" and pressing
+ * Enter must apply the filter, not silently do nothing.
  */
 export function PlayerFilters({
   positions,
@@ -38,8 +42,23 @@ export function PlayerFilters({
 
   const activeCount = [
     'position', 'nationality', 'foot', 'agency', 'ageMin', 'ageMax', 'minHeight', 'maxValue',
-    'contract', 'league', 'minMinutes', 'minApps', 'minGoals', 'minAssists', 'minG90', 'minA90',
+    'contract', 'league', 'club', 'minMinutes', 'minApps', 'minGoals', 'minAssists', 'minG90', 'minA90',
   ].filter((k) => params.get(k)).length;
+
+  // The sheet locks the page behind it on phones and closes on Escape.
+  useEffect(() => {
+    if (!open) return;
+    const mobile = window.matchMedia('(max-width: 767px)').matches;
+    if (mobile) document.body.style.overflow = 'hidden';
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = '';
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
 
   return (
     <div className="px-4 md:px-6 pt-3">
@@ -76,7 +95,26 @@ export function PlayerFilters({
       </form>
 
       {open && (
-        <div className="surface mt-2 p-3 grid grid-cols-2 md:grid-cols-4 gap-3">
+        <button
+          type="button"
+          aria-hidden
+          tabIndex={-1}
+          onClick={() => setOpen(false)}
+          className="fixed inset-0 z-40 md:hidden cursor-default"
+          style={{ background: 'color-mix(in srgb, var(--bg) 65%, transparent)' }}
+        />
+      )}
+      {open && (
+        <div
+          className={
+            'grid grid-cols-2 gap-3 p-3 ' +
+            // Phone: a bottom sheet. Desktop: the familiar inline drawer.
+            'fixed inset-x-0 bottom-0 z-50 max-h-[78dvh] overflow-y-auto rounded-t-[10px] pb-6 ' +
+            'md:static md:z-auto md:max-h-none md:overflow-visible md:rounded-[6px] md:pb-3 md:mt-2 md:grid-cols-4 surface'
+          }
+          role="dialog"
+          aria-label="Filters"
+        >
           <Select label="Position" name="position" value={params.get('position') ?? ''}
                   options={positions} onChange={(v) => apply({ position: v })} />
           <Select label="Nationality" name="nationality" value={params.get('nationality') ?? ''}
@@ -125,14 +163,22 @@ export function PlayerFilters({
                   ]}
                   onChange={(v) => apply({ sort: v })} />
 
-          <div className="col-span-2 md:col-span-4 flex justify-end pt-1">
+          <div className="col-span-2 md:col-span-4 flex items-center justify-between gap-2 pt-1">
             <button
               type="button"
               onClick={() => startTransition(() => router.push(pathname))}
-              className="text-xs font-semibold px-3 py-2"
+              className="text-xs font-semibold px-3 min-h-[44px]"
               style={{ color: 'var(--muted)' }}
             >
               Clear all filters
+            </button>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="md:hidden text-sm font-semibold px-5 min-h-[44px] rounded-[4px]"
+              style={{ background: 'var(--color-verified)', color: '#06201C' }}
+            >
+              Done
             </button>
           </div>
         </div>
@@ -179,6 +225,9 @@ function Number({
         inputMode="numeric"
         defaultValue={value}
         onBlur={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') onChange((e.target as HTMLInputElement).value);
+        }}
         className="w-full px-2 py-2 text-sm rounded-[3px] data"
         style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--fg)' }}
       />

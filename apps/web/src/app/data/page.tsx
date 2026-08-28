@@ -12,26 +12,29 @@ export const dynamic = 'force-dynamic';
 export default async function DataPage() {
   const supabase = await createClient();
 
-  const [{ data: providers }, { data: jobs }, { data: runs }, counts] = await Promise.all([
-    supabase.from('data_providers').select('*').order('default_priority', { ascending: false }),
-    supabase.from('ingestion_jobs').select('*').order('key'),
-    supabase.from('ingestion_runs').select('*').order('started_at', { ascending: false }).limit(10),
-    (async () => {
-      const tables = ['players', 'clubs', 'competitions', 'market_values', 'transfers',
-                      'contracts', 'representation_records', 'player_external_ids',
-                      'source_facts', 'discovery_signals'] as const;
-      const results = await Promise.all(
-        tables.map((t) => supabase.from(t).select('*', { count: 'exact', head: true })),
-      );
-      return tables.map((t, i) => ({ table: t, count: results[i].count ?? 0 }));
-    })(),
-  ]);
+  // Which providers have actually produced data comes from
+  // v_provider_id_counts, counted in the database. The old version read the
+  // whole player_external_ids table (85k rows) here — sequentially, after
+  // everything else — and silently received the first 1,000, so a provider
+  // whose ids sorted late looked disconnected.
+  const [{ data: providers }, { data: jobs }, { data: runs }, counts, { data: providerCounts }] =
+    await Promise.all([
+      supabase.from('data_providers').select('*').order('default_priority', { ascending: false }),
+      supabase.from('ingestion_jobs').select('*').order('key'),
+      supabase.from('ingestion_runs').select('*').order('started_at', { ascending: false }).limit(10),
+      (async () => {
+        const tables = ['players', 'clubs', 'competitions', 'market_values', 'transfers',
+                        'contracts', 'representation_records', 'player_external_ids',
+                        'source_facts', 'discovery_signals'] as const;
+        const results = await Promise.all(
+          tables.map((t) => supabase.from(t).select('*', { count: 'exact', head: true })),
+        );
+        return tables.map((t, i) => ({ table: t, count: results[i].count ?? 0 }));
+      })(),
+      supabase.from('v_provider_id_counts').select('provider_code, external_ids, players'),
+    ]);
 
-  // Which providers have actually produced data, as opposed to merely existing.
-  const { data: activeProviders } = await supabase
-    .from('player_external_ids')
-    .select('provider_code');
-  const withData = new Set((activeProviders ?? []).map((r) => r.provider_code));
+  const withData = new Set((providerCounts ?? []).map((r) => r.provider_code));
 
   return (
     <AppShell eyebrow="System" title="Data & providers">
@@ -56,6 +59,7 @@ export default async function DataPage() {
         </div>
         <div className="surface mx-4 md:mx-6 overflow-hidden">
           {(providers ?? []).map((p) => {
+            const coverage = (providerCounts ?? []).find((c) => c.provider_code === p.code);
             const connected = withData.has(p.code);
             return (
               <div key={p.code} className="px-4 py-3 flex items-center gap-3" style={{ borderBottom: '1px solid var(--border)' }}>
@@ -65,6 +69,11 @@ export default async function DataPage() {
                     <span className={`badge ${connected ? 'badge-verified' : p.requires_credentials ? 'badge-attention' : 'badge-neutral'}`}>
                       {connected ? 'Connected' : p.requires_credentials ? 'Needs credentials' : 'Not connected'}
                     </span>
+                    {coverage && (
+                      <span className="data text-xs" style={{ color: 'var(--muted)' }}>
+                        {Number(coverage.players ?? 0).toLocaleString()} players
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--muted)' }}>
                     {p.notes}

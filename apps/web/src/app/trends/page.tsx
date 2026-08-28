@@ -6,110 +6,67 @@ export const dynamic = 'force-dynamic';
 
 /**
  * TRENDS — cohort analytics the current dataset genuinely supports.
- * Everything is computed server-side from v_player_discovery rows: medians
- * by age band and position, twelve-month value drift, league concentration.
+ *
+ * All aggregation happens in the database via `gbm_trends_report()`. The
+ * previous version pulled the players table into JavaScript, silently
+ * received at most 1,000 of 13,296 rows (the response cap), computed medians
+ * on that sample, and printed the truncated count as "the N tracked
+ * players" — the exact defect the clubs page documents having fixed for
+ * itself. SQL sees every row and says how many it saw.
+ *
  * Bars encode magnitude in a single hue with the value labelled directly;
  * cohort sizes are always shown, because a median over nine players is a
  * different fact than one over three hundred. This page describes the
  * imported population — not world football.
  */
 
-interface Row {
-  age: number | null;
-  primary_position: string | null;
-  market_value: number | null;
-  value_change_12m_pct: number | null;
-  league_name: string | null;
-  season_minutes: number | null;
+interface AgeBand {
+  label: string;
+  n: number;
+  median: number | null;
+  median_change: number | null;
 }
-
-/** Clock read outside the component body — React's purity rule refuses
- *  Date.now() in render, and this page is force-dynamic anyway. */
-function ageFromDob(dob: string | null): number | null {
-  if (!dob) return null;
-  const t = Date.parse(dob);
-  if (Number.isNaN(t)) return null;
-  return (Date.now() - t) / 31_557_600_000;
+interface PositionBand {
+  label: string;
+  n: number;
+  median: number | null;
 }
-
-function median(xs: number[]): number | null {
-  if (xs.length === 0) return null;
-  const s = [...xs].sort((a, b) => a - b);
-  const mid = Math.floor(s.length / 2);
-  return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+interface LeagueBand {
+  label: string;
+  n: number;
+  total: number;
 }
-
-const AGE_BANDS: Array<{ label: string; min: number; max: number }> = [
-  { label: '16–18', min: 16, max: 18.999 },
-  { label: '19–21', min: 19, max: 21.999 },
-  { label: '22–24', min: 22, max: 24.999 },
-  { label: '25–28', min: 25, max: 28.999 },
-  { label: '29–32', min: 29, max: 32.999 },
-  { label: '33+', min: 33, max: 99 },
-];
-
-const POSITION_GROUPS: Array<{ label: string; match: (p: string) => boolean }> = [
-  { label: 'Goalkeepers', match: (p) => p === 'Goalkeeper' },
-  { label: 'Centre-backs', match: (p) => p === 'Centre-Back' },
-  { label: 'Full-backs', match: (p) => p === 'Left-Back' || p === 'Right-Back' },
-  { label: 'Defensive mid', match: (p) => p === 'Defensive Midfield' },
-  { label: 'Central mid', match: (p) => p === 'Central Midfield' },
-  { label: 'Attacking mid', match: (p) => p === 'Attacking Midfield' },
-  { label: 'Wingers', match: (p) => p.includes('Winger') || p === 'Left Midfield' || p === 'Right Midfield' },
-  { label: 'Strikers', match: (p) => p === 'Centre-Forward' || p === 'Second Striker' },
-];
 
 export default async function TrendsPage() {
   const supabase = await createClient();
-  // Cohort scan over the cached columns — one indexed table read instead of
-  // evaluating the lateral view for the whole population.
-  const { data } = await supabase
-    .from('players')
-    .select('date_of_birth, primary_position, cached_market_value, cached_value_change_pct, cached_league, cached_season_minutes');
+  const { data, error } = await supabase.rpc('gbm_trends_report');
 
-  const rows: Row[] = (data ?? []).map((r) => ({
-    age: ageFromDob(r.date_of_birth),
-    primary_position: r.primary_position,
-    market_value: r.cached_market_value,
-    value_change_12m_pct: r.cached_value_change_pct,
-    league_name: r.cached_league,
-    season_minutes: r.cached_season_minutes,
-  }));
-  const valued = rows.filter((r) => r.market_value !== null && r.market_value > 0);
+  if (error || !data) {
+    return (
+      <AppShell eyebrow="Intelligence" title="Trends">
+        <div className="surface mx-4 md:mx-6 mt-4 px-4 py-10 text-center">
+          <p className="font-semibold text-sm" style={{ color: 'var(--color-conflict)' }}>
+            The trends report could not be computed
+          </p>
+          <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
+            {error?.message ?? 'The report returned nothing.'}
+          </p>
+        </div>
+      </AppShell>
+    );
+  }
 
-  const byAge = AGE_BANDS.map((b) => {
-    const cohort = valued.filter((r) => r.age !== null && Number(r.age) >= b.min && Number(r.age) <= b.max);
-    return {
-      label: b.label,
-      n: cohort.length,
-      median: median(cohort.map((r) => Number(r.market_value))),
-      medianChange: median(
-        cohort.filter((r) => r.value_change_12m_pct !== null).map((r) => Number(r.value_change_12m_pct)),
-      ),
-    };
-  }).filter((b) => b.n > 0);
+  const report = data as unknown as {
+    population: number;
+    valued: number;
+    by_age: AgeBand[];
+    by_position: PositionBand[];
+    by_league: LeagueBand[];
+  };
 
-  const byPosition = POSITION_GROUPS.map((g) => {
-    const cohort = valued.filter((r) => r.primary_position && g.match(r.primary_position));
-    return {
-      label: g.label,
-      n: cohort.length,
-      median: median(cohort.map((r) => Number(r.market_value))),
-    };
-  }).filter((g) => g.n > 0);
-
-  const byLeague = Object.entries(
-    valued.reduce<Record<string, { total: number; n: number }>>((acc, r) => {
-      if (!r.league_name) return acc;
-      acc[r.league_name] = acc[r.league_name] ?? { total: 0, n: 0 };
-      acc[r.league_name].total += Number(r.market_value);
-      acc[r.league_name].n += 1;
-      return acc;
-    }, {}),
-  )
-    .map(([label, v]) => ({ label, total: v.total, n: v.n }))
-    .sort((a, b) => b.total - a.total)
-    .slice(0, 12);
+  const byAge = (report.by_age ?? []).filter((b) => b.n > 0);
+  const byPosition = (report.by_position ?? []).filter((b) => b.n > 0);
+  const byLeague = report.by_league ?? [];
 
   const maxAgeMedian = Math.max(...byAge.map((b) => b.median ?? 0), 1);
   const maxPosMedian = Math.max(...byPosition.map((b) => b.median ?? 0), 1);
@@ -118,8 +75,9 @@ export default async function TrendsPage() {
   return (
     <AppShell eyebrow="Intelligence" title="Trends">
       <p className="px-4 md:px-6 pt-2 text-xs leading-relaxed max-w-2xl" style={{ color: 'var(--muted)' }}>
-        Cohort patterns across the {rows.length.toLocaleString('en-GB')} tracked players with recorded
-        valuations. Medians, not means — one €200m player would otherwise move an entire cohort.
+        Cohort patterns across {report.valued.toLocaleString('en-GB')} of the{' '}
+        {report.population.toLocaleString('en-GB')} tracked players — those with a recorded
+        valuation. Medians, not means — one €200m player would otherwise move an entire cohort.
         These figures describe this database, not world football.
       </p>
 
@@ -136,8 +94,8 @@ export default async function TrendsPage() {
       </Panel>
 
       <Panel title="12-month value drift by age" subtitle="Median change — where the market is moving, by cohort">
-        {byAge.filter((b) => b.medianChange !== null).map((b) => {
-          const v = b.medianChange as number;
+        {byAge.filter((b) => b.median_change !== null).map((b) => {
+          const v = b.median_change as number;
           return (
             <div key={b.label} className="px-4 py-2 flex items-center gap-3" style={{ borderBottom: '1px solid var(--border)' }}>
               <span className="data text-xs w-12 shrink-0" style={{ color: 'var(--muted)' }}>{b.label}</span>

@@ -2,7 +2,44 @@
 
 How GBM recovers the players damaged by the defective `gbm_merge_player`, what
 "recovered" honestly means, and where recovery ends. Written 2026-08-28,
-alongside migration 0048 and the `recovery:merged-players` command.
+alongside migration 0048 and the `recovery:merged-players` command; outcome of
+the first pass recorded the same day.
+
+## Outcome of the first pass (2026-08-28, run `merge_recovery` #1)
+
+**36 RECOVERED · 10 MANUAL_REVIEW · 0 PARTIAL · 0 NO_SOURCE_AVAILABLE — and
+the per-player before/after deltas were zero everywhere.** The run scanned
+2,725,862 dataset rows, re-sent every row the source holds for the 37 anchored
+survivors (173 valuations, 116 transfers, 72 season-stat cells, 34 contracts),
+and every one of them already existed under its natural key. No survivor
+gained a single row.
+
+That is not a failed recovery; it is the measurement the missing audit never
+allowed. It tells us what the defect actually destroyed:
+
+- The old function deleted a duplicate's row **only on a unique-key
+  collision** — that is, only when the survivor already held a row with the
+  same natural key. Rows with non-colliding keys were repointed and survived.
+  So the *unique facts* survived the 46 merges; what was destroyed was the
+  duplicate's **copy** of facts the survivor already had.
+- Whether any of those copies carried *different values* (a conflicting
+  valuation for the same date, a differently-priced transfer) is permanently
+  unknowable — the old function kept no audit. This is exactly the class of
+  information the platform does not pretend to have; the fixed
+  `gbm_merge_player` archives such rows into `player_merge_conflicts`
+  precisely so this question never becomes unanswerable again.
+- The depletion fingerprint (survivors averaging 6.6 market values against a
+  population 14.7) is now explained mostly by cohort, not loss: the dataset
+  itself holds only ~4.7 valuations per anchored survivor — these are young
+  regional players below the population's history depth. The population-mean
+  flag aimed the pass correctly and then stopped being the measure, as
+  designed.
+
+The 10 MANUAL_REVIEW players are the real remainder: nine hold no
+Transfermarkt identity at all (Avengers/Grok collection; their raw payloads
+sit in `source_records` for a human to re-process) and one — Oybek
+Urmonjonov, tm `1109178` — is anchored but absent from the dataset release
+entirely.
 
 ## What happened
 
@@ -68,7 +105,7 @@ valuations will never reach the population mean, and calling that player
 unrecovered forever would be the same class of dishonesty as reading
 `NO_AGENCY_LISTED` as "unrepresented".
 
-## The cohort, before recovery
+## The cohort, before the first run
 
 Measured live on 2026-08-28, before the first run:
 

@@ -86,7 +86,9 @@ export function PlayerCard({ player, priority = false }: { player: PlayerCardDat
               .join(' · ')}
           </p>
           <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--muted)' }}>
-            {player.club_name ?? 'Club unknown'}
+            {[player.club_name ?? 'Club unknown', leagueLabel(player.league_name) ?? player.league_name]
+              .filter(Boolean)
+              .join(' · ')}
           </p>
           {(flag || player.nationality) && (
             <p className="text-xs mt-0.5 truncate flex items-center gap-1.5" style={{ color: 'var(--muted)' }}>
@@ -151,7 +153,16 @@ export function PlayerListRow({ player }: { player: PlayerCardData }) {
             <span className="font-semibold text-[0.9375rem] truncate">{player.full_name}</span>
             <GbmBadge status={player.gbm_status ?? null} />
             {player.representation_status === 'NO_AGENCY_LISTED' && (
-              <span className="badge badge-attention">No agency listed</span>
+              // The caveat travels with the chip: this records what a source
+              // displayed on a date, and is NOT evidence the player is
+              // unrepresented. The full sentence lives on the profile's
+              // Representation tab; the title carries it into every list.
+              <span
+                className="badge badge-attention"
+                title="What the source displayed when last checked — not evidence the player is unrepresented. Verify independently."
+              >
+                No agency listed
+              </span>
             )}
           </div>
           <div className="flex items-center gap-x-2 gap-y-0.5 flex-wrap mt-0.5 text-xs" style={{ color: 'var(--muted)' }}>

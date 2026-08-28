@@ -34,6 +34,21 @@ export default async function PlayersPage({ searchParams }: { searchParams: Sear
 
   const sort = sp.sort ?? 'fit';
 
+  // A club filter arrives as a name — that is what /clubs can link with.
+  // Resolve it to the id once; an unknown name must match nothing, never
+  // silently match everything (the old behaviour: the parameter was dropped
+  // and every club row led to the unfiltered list).
+  let clubId: string | null = null;
+  if (sp.club) {
+    const { data: clubRow } = await supabase
+      .from('clubs')
+      .select('id')
+      .ilike('name', sp.club)
+      .limit(1)
+      .maybeSingle();
+    clubId = clubRow?.id ?? null;
+  }
+
   // Two query paths. The fast path sorts and filters on the indexed cached
   // columns of `players` (milliseconds at any population size). Filters and
   // sorts that need representation state or per-90 statistics fall back to
@@ -49,6 +64,7 @@ export default async function PlayersPage({ searchParams }: { searchParams: Sear
     query = supabase.from('v_player_discovery').select('*');
 
     if (sp.q) query = query.ilike('full_name', `%${sp.q}%`);
+    if (sp.club) query = query.eq('club_name', sp.club);
     if (sp.position) query = query.eq('primary_position', sp.position);
     if (sp.nationality) query = query.eq('nationality', sp.nationality);
     if (sp.league) query = query.eq('league_name', sp.league);
@@ -84,6 +100,9 @@ export default async function PlayersPage({ searchParams }: { searchParams: Sear
     query = supabase.from('players').select(cachedPlayerColumns(Boolean(sp.nationality)));
 
     if (sp.q) query = query.ilike('full_name', `%${sp.q}%`);
+    if (sp.club) {
+      query = query.eq('current_club_id', clubId ?? '00000000-0000-0000-0000-000000000000');
+    }
     if (sp.position) query = query.eq('primary_position', sp.position);
     if (sp.nationality) query = query.eq('nationality.name', sp.nationality);
     if (sp.league) query = query.eq('cached_league', sp.league);
@@ -157,6 +176,22 @@ export default async function PlayersPage({ searchParams }: { searchParams: Sear
         nationalities={(nationalities ?? []).map((n) => n.name)}
         leagues={leagueOptions}
       />
+
+      {sp.club && (
+        <div className="px-4 md:px-6 pt-2">
+          <a
+            href={(() => {
+              const params = new URLSearchParams();
+              for (const [k, v] of Object.entries(sp)) if (v && k !== 'club' && k !== 'page') params.set(k, v);
+              return `/players${params.size ? `?${params}` : ''}`;
+            })()}
+            className="badge badge-neutral inline-flex items-center gap-1.5"
+          >
+            {sp.club}
+            <span aria-hidden>✕</span>
+          </a>
+        </div>
+      )}
 
       <div className="px-4 md:px-6 py-2 flex items-baseline justify-between">
         <p className="eyebrow">

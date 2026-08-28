@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { BottomNav } from './bottom-nav';
 import { SideNav } from './side-nav';
+import { GlobalSearch } from './global-search';
 import { NAV_GROUPS, type NavLabels } from '@/lib/nav';
 import { getTranslator, type Translate } from '@/lib/i18n';
 import type { MessageKey } from '@/lib/i18n/en';
@@ -74,6 +75,14 @@ export async function AppShell({
                 </h1>
               )}
             </div>
+            <GlobalSearch
+              labels={{
+                button: t('search.button'),
+                placeholder: t('search.placeholder'),
+                empty: t('search.empty'),
+                hint: t('search.hint'),
+              }}
+            />
             {action}
           </div>
           {title && (
