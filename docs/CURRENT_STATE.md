@@ -11,6 +11,35 @@ re-deriving the project. The audit that re-verified everything is
 plan now in flight is
 [`GBM_DATA_IMPLEMENTATION_PLAN.md`](GBM_DATA_IMPLEMENTATION_PLAN.md).
 
+## Phase B2 — position intelligence (2026-08-28)
+
+Four versioned models, live and verified (migrations 0051–0053, engines run
+by the migrations' own guards and re-runnable via `pnpm talent:recompute` /
+the Friday `talent-recompute` workflow):
+
+- **POSITION_PERCENTILE_V1** — 43,286 rows over 2,860 players and nine
+  catalog metrics; cohorts = family × season × strength band with a
+  recorded fallback, 450-minute and 30-player floors, 19,190 rows HIGH
+  confidence. The retired `claude_compute_percentiles` rows (33,670,
+  `CLAUDE:%`) remain untouched as the before-picture, and
+  `talent-engine.test.ts` pins the old methodology as failing the new
+  rules.
+- **GBM_PERFORMANCE_V1** — 9,282 scores (2,292 players), family-weighted
+  over ≥3 metric percentiles, components on every row.
+- **GBM_ROLE_FIT_V1** — FINISHER and CREATOR only, because two is what the
+  metric coverage honestly supports ([`ROLE_PROFILES.md`](ROLE_PROFILES.md)).
+- **GBM_DEVELOPMENT_V1** — 3,001 current signals with reason codes:
+  499 RISING · 830 STABLE · 468 DECLINING · 5 BREAKTHROUGH ·
+  1,199 INSUFFICIENT_HISTORY.
+
+Face check: Mbappé, STRIKER 2025/2026 — 98.4th percentile goals/90 in a
+64-striker cohort, performance 92.8 HIGH. The profile's Performance tab
+renders the bars, score, role chips, development badge and the cohort line.
+Quality report grew to 17 checks with three statistical invariants (cohort
+floor, 0–100 range, impossible minutes) that must stay at zero. The
+0051→0052 self-deleting-run defect and its fix are recorded in
+[`TALENT_ENGINE.md`](TALENT_ENGINE.md).
+
 ## Phase B1.5 — the recovery gap closed, and measured (2026-08-28)
 
 The 46 merge survivors were assessed in B1 but never re-ingested; that gap is

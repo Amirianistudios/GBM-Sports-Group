@@ -97,6 +97,7 @@ export default async function PlayerProfile({ params }: { params: Promise<{ id: 
     { data: intelRecommendation },
     { data: intelAdaptation },
     { data: news },
+    { data: percentiles },
   ] = await Promise.all([
     supabase.from('player_external_ids').select('*').eq('player_id', id),
     // Explicit bounds on the per-player history reads. The response cap would
@@ -167,6 +168,16 @@ export default async function PlayerProfile({ params }: { params: Promise<{ id: 
       .order('published_at', { ascending: false, nullsFirst: false })
       .order('discovered_at', { ascending: false })
       .limit(12),
+
+    // Position intelligence: versioned cohort percentiles and the
+    // performance summary. CLAUDE:% rows (the retired methodology) are
+    // deliberately not read — they remain in the table as evidence only.
+    supabase
+      .from('player_percentiles')
+      .select('metric_key, raw_value, per90_value, percentile, peer_group_size, model_version, confidence, cohort')
+      .eq('player_id', id)
+      .in('model_version', ['POSITION_PERCENTILE_V1', 'GBM_PERFORMANCE_V1', 'GBM_ROLE_FIT_V1'])
+      .limit(200),
   ]);
 
   const club = Array.isArray(player.clubs) ? player.clubs[0] : player.clubs;
@@ -430,19 +441,146 @@ export default async function PlayerProfile({ params }: { params: Promise<{ id: 
     </>
   );
 
+  // ---- Position intelligence: shape the versioned percentile rows ---------
+  interface PctRow {
+    metric_key: string;
+    raw_value: number | string | null;
+    per90_value: number | string | null;
+    percentile: number | string;
+    peer_group_size: number;
+    model_version: string;
+    confidence: string | null;
+    cohort: { family?: string; season?: string; band?: string; size?: number; player_minutes?: number } | null;
+  }
+  const pctRows = (percentiles ?? []) as unknown as PctRow[];
+  // Latest season with metric percentiles, newest first by season label.
+  const pctSeasons = [...new Set(pctRows.map((r) => r.cohort?.season).filter(Boolean))].sort().reverse() as string[];
+  const latestPctSeason = pctSeasons[0] ?? null;
+  const seasonPct = pctRows.filter(
+    (r) => r.cohort?.season === latestPctSeason && r.model_version === 'POSITION_PERCENTILE_V1',
+  );
+  const perfScore = pctRows.find(
+    (r) => r.cohort?.season === latestPctSeason && r.metric_key === 'PERFORMANCE_SCORE',
+  );
+  // Role fit answers a different question than performance, so it renders as
+  // its own chips, never blended into the score.
+  const roleFits = pctRows
+    .filter((r) => r.cohort?.season === latestPctSeason && r.model_version === 'GBM_ROLE_FIT_V1')
+    .sort((a, b) => Number(b.percentile) - Number(a.percentile));
+  const ROLE_LABEL: Record<string, string> = {
+    'ROLE_FIT:FINISHER': 'Finisher', 'ROLE_FIT:CREATOR': 'Creator',
+  };
+  const devSignal = (signals ?? []).find((s) => s.signal_type === 'DEVELOPMENT_TREND');
+  const devState = (devSignal?.evidence as { state?: string } | null)?.state ?? null;
+  const DEV_LABEL: Record<string, string> = {
+    RISING: 'Rising', STABLE: 'Stable', DECLINING: 'Declining',
+    BREAKTHROUGH: 'Breakthrough', INSUFFICIENT_HISTORY: 'Not enough history',
+  };
+  const METRIC_LABEL: Record<string, string> = {
+    goals_per90: 'Goals /90', assists_per90: 'Assists /90',
+    goal_contributions_per90: 'Goal contributions /90', discipline_per90: 'Cards /90 (lower is better)',
+    shots_per90: 'Shots /90', key_passes_per90: 'Key passes /90', xg_per90: 'xG /90',
+    pass_accuracy_pct: 'Pass accuracy', saves_per90: 'Saves /90',
+  };
+  const METRIC_ORDER = ['goals_per90', 'goal_contributions_per90', 'assists_per90', 'shots_per90',
+    'key_passes_per90', 'xg_per90', 'saves_per90', 'pass_accuracy_pct', 'discipline_per90'];
+  const orderedPct = [...seasonPct].sort(
+    (a, b) => METRIC_ORDER.indexOf(a.metric_key) - METRIC_ORDER.indexOf(b.metric_key),
+  );
+
   const performancePanel = (
-    <Section
-      title="Season by season"
-      subtitle={`${career.apps} apps · ${career.minutes.toLocaleString('en-GB')}′ · ${career.goals}G ${career.assists}A recorded`}
-    >
-      <SeasonStatsTable rows={statRows} />
-      <p className="px-4 py-3 text-xs leading-relaxed" style={{ color: 'var(--muted)', borderTop: '1px solid var(--border)' }}>
-        Counting statistics from the connected dataset&#8217;s competition coverage. Advanced metrics
-        (xG, duels, progressive actions) and positional analytics (shot maps, heatmaps, passing
-        maps) appear only when a licensed event-data provider is connected — GBM never estimates
-        or fabricates them.
-      </p>
-    </Section>
+    <>
+      {orderedPct.length > 0 && latestPctSeason && (
+        <Section
+          title="Performance intelligence"
+          subtitle={`${latestPctSeason} · ranked among ${orderedPct[0].peer_group_size} ${orderedPct[0].cohort?.family ?? ''} peers${orderedPct[0].cohort?.band && orderedPct[0].cohort?.band !== 'ALL' ? ` in ${orderedPct[0].cohort?.band} leagues` : ''} · 450+ minutes`}
+        >
+          {(perfScore || devState) && (
+            <div className="px-4 pt-3 flex items-center gap-4 flex-wrap">
+              {perfScore && (
+                <div className="flex items-baseline gap-2">
+                  <span className="data text-2xl font-bold" style={{ color: 'var(--color-gbm-2)' }}>
+                    {Math.round(Number(perfScore.percentile))}
+                  </span>
+                  <span className="eyebrow">Performance /100</span>
+                  <span className="badge badge-neutral">{perfScore.confidence}</span>
+                </div>
+              )}
+              {devState && (
+                <span
+                  className={`badge ${devState === 'DECLINING' ? 'badge-attention' : devState === 'INSUFFICIENT_HISTORY' ? 'badge-neutral' : 'badge-verified'}`}
+                  title={devSignal?.rationale ?? undefined}
+                >
+                  {DEV_LABEL[devState] ?? devState}
+                </span>
+              )}
+              {roleFits.map((r) => (
+                <span key={r.metric_key} className="data text-xs" style={{ color: 'var(--muted)' }}>
+                  {ROLE_LABEL[r.metric_key] ?? r.metric_key}{' '}
+                  <span className="font-semibold" style={{ color: 'var(--fg)' }}>
+                    {Math.round(Number(r.percentile))}
+                  </span>
+                </span>
+              ))}
+            </div>
+          )}
+
+          <div className="px-4 py-3 grid gap-2">
+            {orderedPct.map((r) => {
+              const pct = Number(r.percentile);
+              return (
+                <div key={r.metric_key} className="flex items-center gap-3">
+                  <span className="text-xs w-44 shrink-0 truncate" style={{ color: 'var(--muted)' }}>
+                    {METRIC_LABEL[r.metric_key] ?? r.metric_key}
+                  </span>
+                  <div className="flex-1 h-2.5 rounded-[3px] overflow-hidden" style={{ background: 'var(--surface-3)' }} aria-hidden>
+                    <div
+                      className="h-full rounded-[3px]"
+                      style={{
+                        width: `${Math.max(pct, 2)}%`,
+                        background: 'color-mix(in srgb, var(--color-verified) 78%, var(--color-ink))',
+                      }}
+                    />
+                  </div>
+                  <span className="data text-xs font-semibold w-10 text-right shrink-0">{Math.round(pct)}</span>
+                  <span className="data text-[0.6875rem] w-16 text-right shrink-0" style={{ color: 'var(--muted)' }}>
+                    {r.metric_key === 'pass_accuracy_pct'
+                      ? `${Number(r.per90_value).toFixed(1)}%`
+                      : Number(r.per90_value).toFixed(2)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+
+          {pctSeasons.length > 1 && (
+            <p className="px-4 pb-1 text-xs" style={{ color: 'var(--muted)' }}>
+              Earlier seasons ranked: {pctSeasons.slice(1).join(' · ')} — every row keeps its cohort
+              and model version in the database.
+            </p>
+          )}
+          <p className="px-4 py-3 text-xs leading-relaxed" style={{ color: 'var(--muted)', borderTop: '1px solid var(--border)' }}>
+            Percentiles are POSITION_PERCENTILE_V1: same position family, same season, competition
+            strength as a band — never a multiplier. A cohort under 30 players is not ranked at
+            all. The performance number summarises only these percentiles (GBM_PERFORMANCE_V1) and
+            is separate from GBM fit, role fit and any transition judgement.
+          </p>
+        </Section>
+      )}
+
+      <Section
+        title="Season by season"
+        subtitle={`${career.apps} apps · ${career.minutes.toLocaleString('en-GB')}′ · ${career.goals}G ${career.assists}A recorded`}
+      >
+        <SeasonStatsTable rows={statRows} />
+        <p className="px-4 py-3 text-xs leading-relaxed" style={{ color: 'var(--muted)', borderTop: '1px solid var(--border)' }}>
+          Counting statistics from the connected dataset&#8217;s competition coverage. Advanced metrics
+          (xG, duels, progressive actions) and positional analytics (shot maps, heatmaps, passing
+          maps) appear only when a licensed event-data provider is connected — GBM never estimates
+          or fabricates them.
+        </p>
+      </Section>
+    </>
   );
 
   const marketPanel = (

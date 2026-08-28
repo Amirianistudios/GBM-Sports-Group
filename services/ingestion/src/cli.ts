@@ -8,6 +8,7 @@
  *   pnpm reep:resolve                  attach cross-provider identities via Reep
  *   pnpm recovery:merged-players       re-ingest the survivors of the defective merge
  *   pnpm signals:compute               recompute discovery signals
+ *   pnpm talent:recompute              percentiles, performance scores, development trends
  *   pnpm quality:check                 report data quality
  *   pnpm ingest:status                 recent runs and row counts
  *
@@ -121,6 +122,33 @@ async function cmdSignals(): Promise<void> {
     run.note('signals', data);
     log('');
     log(`${total} current signals.`);
+  });
+}
+
+/**
+ * The B2 talent engine, in pipeline order: cohort percentiles first (the
+ * scores read them), then the performance summary, then development trends.
+ * Each stage's own report lands in the run summary, so a collapse in one
+ * (cohorts suddenly failing the 30-player floor, say) is visible in the
+ * ledger and not just in a missing UI section.
+ */
+async function cmdTalent(): Promise<void> {
+  log('Talent engine — percentiles, performance, development');
+  await IngestionRun.wrap('talent_recompute', {}, async (run) => {
+    for (const [label, fn] of [
+      ['percentiles', 'gbm_compute_percentiles'],
+      ['performance', 'gbm_compute_performance_score'],
+      ['role fit', 'gbm_compute_role_fit'],
+      ['development', 'gbm_compute_development'],
+    ] as const) {
+      const { data, error } = await admin().rpc(fn);
+      if (error) throw new Error(`${label} failed — ${error.message}`);
+      const report = (data ?? {}) as Record<string, unknown>;
+      run.note(label, report);
+      const written = Number(report.written ?? 0);
+      run.count({ created: written });
+      log(`  ${label.padEnd(14)} ${JSON.stringify(report)}`);
+    }
   });
 }
 
@@ -250,6 +278,7 @@ const COMMANDS: Record<string, () => Promise<void>> = {
   resolve: cmdResolve,
   recover: cmdRecover,
   signals: cmdSignals,
+  talent: cmdTalent,
   quality: cmdQuality,
   status: cmdStatus,
   preflight: cmdPreflight,

@@ -1883,6 +1883,36 @@ export type Database = {
           },
         ]
       }
+      metric_catalog: {
+        Row: {
+          description: string
+          direction: string
+          display_order: number
+          families: string[]
+          kind: string
+          label: string
+          metric_key: string
+        }
+        Insert: {
+          description: string
+          direction: string
+          display_order?: number
+          families: string[]
+          kind: string
+          label: string
+          metric_key: string
+        }
+        Update: {
+          description?: string
+          direction?: string
+          display_order?: number
+          families?: string[]
+          kind?: string
+          label?: string
+          metric_key?: string
+        }
+        Relationships: []
+      }
       merge_recovery_attempts: {
         Row: {
           after_coverage: Json
@@ -3086,9 +3116,12 @@ export type Database = {
       }
       player_percentiles: {
         Row: {
+          cohort: Json | null
           computed_at: string
+          confidence: string | null
           id: string
           metric_key: string
+          model_version: string | null
           peer_group: string
           peer_group_size: number | null
           per90_value: number | null
@@ -3098,9 +3131,12 @@ export type Database = {
           season_id: string | null
         }
         Insert: {
+          cohort?: Json | null
           computed_at?: string
+          confidence?: string | null
           id?: string
           metric_key: string
+          model_version?: string | null
           peer_group: string
           peer_group_size?: number | null
           per90_value?: number | null
@@ -3110,9 +3146,12 @@ export type Database = {
           season_id?: string | null
         }
         Update: {
+          cohort?: Json | null
           computed_at?: string
+          confidence?: string | null
           id?: string
           metric_key?: string
+          model_version?: string | null
           peer_group?: string
           peer_group_size?: number | null
           per90_value?: number | null
@@ -5314,6 +5353,11 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["gbm_role"]
       }
+      gbm_cohort_family: { Args: { p_position: string }; Returns: string }
+      gbm_compute_percentiles: { Args: never; Returns: Json }
+      gbm_compute_performance_score: { Args: never; Returns: Json }
+      gbm_compute_role_fit: { Args: never; Returns: Json }
+      gbm_compute_development: { Args: never; Returns: Json }
       gbm_dashboard_summary: { Args: never; Returns: Json }
       gbm_data_quality_report: { Args: never; Returns: Json }
       gbm_generate_shortlist: {

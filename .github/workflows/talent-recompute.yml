@@ -1,0 +1,84 @@
+# ---------------------------------------------------------------------------
+# Weekly recomputation of the talent engine: cohort percentiles
+# (POSITION_PERCENTILE_V1), performance scores (GBM_PERFORMANCE_V1) and
+# development trends (GBM_DEVELOPMENT_V1).
+#
+# Friday 05:00 UTC — after Wednesday's dataset import and Thursday's Reep
+# enrichment, so the cohorts rank this week's football, not last week's.
+# The engines are idempotent (versioned upserts; a run replaces only its own
+# model version's stale rows) and each stage's report lands in the
+# ingestion_runs summary.
+#
+# Secrets:
+#   NEXT_PUBLIC_SUPABASE_URL    project URL; defaulted below, public by design
+#   SUPABASE_SERVICE_ROLE_KEY   service key; bypasses RLS; never printed
+# ---------------------------------------------------------------------------
+name: talent-recompute
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/talent-trigger']
+  schedule:
+    - cron: '0 5 * * 5'
+  workflow_dispatch:
+
+concurrency:
+  group: gbm-ingestion
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  recompute:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || 'https://tyzndcjuiffnyhluddce.supabase.co' }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Preflight
+        run: pnpm ingest:preflight | tee logs-preflight.txt
+
+      - name: Recompute talent engine
+        run: pnpm talent:recompute | tee logs-talent.txt
+
+      # The statistical checks watch exactly what this run writes.
+      - name: Quality check
+        if: always()
+        run: pnpm quality:check | tee logs-quality.txt
+
+      - name: Run summary
+        if: always()
+        run: |
+          {
+            echo '## Talent recompute'
+            echo '```'
+            tail -40 logs-talent.txt 2>/dev/null
+            echo '```'
+            echo '### Quality'
+            echo '```'
+            tail -30 logs-quality.txt 2>/dev/null
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Retain logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: talent-recompute-${{ github.run_number }}
+          path: logs-*.txt

@@ -160,6 +160,27 @@ const CHECKS: {
     failAbove: 0,
   },
   {
+    key: 'stats_minutes_exceed_possible',
+    label: 'Season stats with impossible minutes',
+    note: 'More minutes than matches × 120 — a provider or aggregation error, not football.',
+    warnAbove: 0,
+    failAbove: 0,
+  },
+  {
+    key: 'percentiles_below_cohort_floor',
+    label: 'Percentiles ranked in a too-small cohort',
+    note: 'POSITION_PERCENTILE_V1 promises a 30-player floor; any row below it means the engine broke its own rule.',
+    warnAbove: 0,
+    failAbove: 0,
+  },
+  {
+    key: 'performance_scores_out_of_range',
+    label: 'Scores outside 0–100',
+    note: 'A percentile or performance score outside its range is arithmetic gone wrong, never data.',
+    warnAbove: 0,
+    failAbove: 0,
+  },
+  {
     key: 'source_records_unlinked',
     label: 'Raw payloads not tied to a player',
     note: 'Informational: a payload collected before its player was resolved.',

@@ -23,6 +23,7 @@ past RLS runs on a runner.
 | `reep-enrich` | `0 5 * * 4` | resolves identities against the Reep register | `player_external_ids` |
 | `data-import-trigger` | marker file on `main` | staged import by hand | as `data-refresh` |
 | `merge-recovery` | marker file / dispatch — deliberately unscheduled | targeted re-ingestion for the merge survivors | same tables, restricted to the queue's players; one `merge_recovery_attempts` row per survivor |
+| `talent-recompute` | `0 5 * * 5` | percentiles, performance scores, role fit, development trends | `player_percentiles` (GBM models only), `discovery_signals` |
 
 All the data workflows share `concurrency: gbm-ingestion`, so they queue
 rather than overlap. They write the same tables and the caches derived from
@@ -62,6 +63,7 @@ so each data workflow also watches a marker file:
     .github/intelligence-trigger    → hourly-intelligence-refresh
     .github/import-trigger          → data-import-trigger
     .github/recovery-trigger        → merge-recovery
+    .github/talent-trigger          → talent-recompute
 
 Touching one on `main` starts that workflow. `workflow_dispatch` also works for
 anyone whose token carries `actions:write`.

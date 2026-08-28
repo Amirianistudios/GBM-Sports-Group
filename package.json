@@ -19,6 +19,7 @@
     "recovery:merged-players": "tsx services/ingestion/src/cli.ts recover",
     "quality:check": "tsx services/ingestion/src/cli.ts quality",
     "signals:compute": "tsx services/ingestion/src/cli.ts signals",
+    "talent:recompute": "tsx services/ingestion/src/cli.ts talent",
     "intel:hourly": "tsx services/ingestion/src/cli.ts hourly",
     "ingest:status": "tsx services/ingestion/src/cli.ts status",
     "ingest:preflight": "tsx services/ingestion/src/cli.ts preflight",

@@ -1,8 +1,12 @@
 # Data quality
 
-Fourteen checks, one function, one screen. Verified 2026-08-28 against project
-`tyzndcjuiffnyhluddce`; the two recovery checks re-verified the same day after
-the first `merge-recovery` run.
+Seventeen checks, one function, one screen. Verified 2026-08-28 against
+project `tyzndcjuiffnyhluddce`; the two recovery checks re-verified the same
+day after the first `merge-recovery` run, and three statistical checks added
+with the B2 talent engine (0051): `stats_minutes_exceed_possible`,
+`percentiles_below_cohort_floor` and `performance_scores_out_of_range` — all
+invariants that must read zero, asserted by the engine guards at compute
+time and watched here between runs.
 
     select gbm_data_quality_report();
 
