@@ -37,6 +37,7 @@ export const NAV_GROUPS: Array<{
   {
     headingKey: 'nav.group.gbm',
     items: [
+      { href: '/recruitment', labelKey: 'nav.recruitment' },
       { href: '/portfolio', labelKey: 'nav.portfolio' },
       { href: '/watchlists', labelKey: 'nav.watchlists' },
       { href: '/scouting', labelKey: 'nav.scouting' },

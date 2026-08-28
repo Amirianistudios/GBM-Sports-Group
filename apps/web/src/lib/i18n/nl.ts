@@ -29,6 +29,7 @@ export const nl: Dict = {
   'nav.players': 'Spelers',
   'nav.compare': 'Vergelijken',
   'nav.clubs': 'Clubs',
+  'nav.recruitment': 'Werving',
   'nav.portfolio': 'Portfolio',
   'nav.watchlists': 'Volglijsten',
   'nav.scouting': 'Scoutingrapporten',

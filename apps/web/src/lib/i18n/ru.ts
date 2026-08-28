@@ -27,6 +27,7 @@ export const ru: Dict = {
   'nav.players': 'Игроки',
   'nav.compare': 'Сравнение',
   'nav.clubs': 'Клубы',
+  'nav.recruitment': 'Подбор игроков',
   'nav.portfolio': 'Портфолио',
   'nav.watchlists': 'Списки наблюдения',
   'nav.scouting': 'Отчёты скаутов',

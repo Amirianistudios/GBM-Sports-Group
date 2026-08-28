@@ -42,6 +42,7 @@ export const ka: Dict = {
   'nav.players': 'მოთამაშეები',
   'nav.compare': 'შედარება',
   'nav.clubs': 'კლუბები',
+  'nav.recruitment': 'რეკრუტინგი',
   'nav.portfolio': 'პორტფოლიო',
   'nav.watchlists': 'დაკვირვების სიები',
   'nav.scouting': 'სკაუტინგის ანგარიშები',
