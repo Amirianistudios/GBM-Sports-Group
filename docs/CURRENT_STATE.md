@@ -901,6 +901,58 @@ GBM's own connectors.
 (start with `NEWS` and `REPORT`), and decide whether AI recommendations should
 appear immediately or pass through a review queue first.
 
+## The repo stopped matching the database (2026-08-28)
+
+Sixty-four migrations were recorded in Supabase against forty-one files in
+`supabase/migrations/`, and twenty objects existed in production that no repo
+file created — six tables, one view and thirteen functions, most of them the
+SofaScore/Transfermarkt ingestion built directly against production by a
+parallel session, three of them earlier work here that was applied and never
+written down. A rebuild from the repo would not have produced production, and
+nobody had reviewed any of it because there was nothing to review.
+
+What the missing review had let through, found by the Supabase linter and a
+read of the catalog, and fixed in migration 0043:
+
+- **Nine SECURITY DEFINER functions with no authorisation check, executable by
+  `anon`** — the unauthenticated role whose key ships in the browser bundle.
+  Among them `gbm_merge_player` and `gbm_merge_club`, which delete rows, and
+  `claude_compute_percentiles` and `claude_write_reports`, which need no
+  identifiers to call. EXECUTE revoked from `public`, `anon` and
+  `authenticated`; they are driven from privileged SQL, not from the API.
+- **`sofascore_tournaments` with RLS disabled**, granted to `anon`.
+- **`v_claude_candidates` as a SECURITY DEFINER view** — it exposes name, date
+  of birth, nationality, market value and agency per player, and evaluated RLS
+  as its creator rather than its reader.
+- **Thirteen functions with a mutable `search_path`**, including the one that
+  authenticates the agent token against a table by name.
+- **The agent token stored in plaintext**, in a table granted to `anon` and
+  `authenticated` with RLS-and-no-policies the only thing denying them. Now a
+  SHA-256 digest; the caller sends the same string and the function hashes it
+  before comparing, so nothing had to be coordinated.
+
+Migration 0044 captures all twenty objects, transcribed from the live catalog.
+It has **not been executed** — the objects already exist, and applying a
+transcription over working production functions risks more than it proves.
+What was verified instead: all fourteen function bodies hash identically to
+`pg_proc.prosrc` after normalising comments and whitespace, and the view's 47
+output columns match in name and order. Validate the file on a Supabase
+preview branch before any rebuild depends on it.
+
+Left deliberately in place, flagged rather than taken:
+
+- `staging_ingest` keeps its unauthenticated INSERT policy, restricted to
+  three source values. It is the external scraper's drop-box and `anon` cannot
+  read, update or delete through it; removing it would break a running
+  collection.
+- `claude_tm_queue` keeps `anon` EXECUTE, because the token is its
+  authentication.
+- Supabase's default TRUNCATE grant is held by `anon` on 71 tables and
+  `authenticated` on 76. TRUNCATE is never filtered by RLS — but PostgREST
+  exposes no TRUNCATE and both roles are NOLOGIN, so there is no request that
+  reaches it. Narrowing it schema-wide is a deliberate decision with an API
+  re-test attached, not a side effect of a capture.
+
 ## Provider research
 
 Nine external sources were assessed on 2026-08-19 — see
