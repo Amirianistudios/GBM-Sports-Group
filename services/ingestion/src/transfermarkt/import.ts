@@ -334,8 +334,13 @@ function clampHeight(cm: number | null): number | null {
 
 // ---------------------------------------------------------------------------
 // CONTRACTS
+//
+// The per-table steps below are exported for the merge-recovery command,
+// which replays them with a player map restricted to the merge survivors.
+// Same code path, same natural keys, same idempotency — only the targeting
+// differs.
 // ---------------------------------------------------------------------------
-async function importContracts(
+export async function importContracts(
   run: IngestionRun,
   playerIds: Map<string, string>,
   clubIds: Map<string, string>,
@@ -378,7 +383,7 @@ async function importContracts(
 // GBM wants to act on. Unchanged rows only have retrieved_at refreshed, which
 // is what distinguishes "checked today, still blank" from "never checked".
 // ---------------------------------------------------------------------------
-async function importRepresentation(
+export async function importRepresentation(
   run: IngestionRun,
   playerIds: Map<string, string>,
   playerRows: Map<string, Row>,
@@ -442,7 +447,7 @@ async function importRepresentation(
 // ---------------------------------------------------------------------------
 // MARKET VALUES — streamed: 650k+ rows.
 // ---------------------------------------------------------------------------
-async function importValuations(
+export async function importValuations(
   run: IngestionRun,
   playerIds: Map<string, string>,
   clubIds: Map<string, string>,
@@ -491,7 +496,7 @@ async function importValuations(
 // ---------------------------------------------------------------------------
 // TRANSFERS — streamed: 175k rows.
 // ---------------------------------------------------------------------------
-async function importTransfers(
+export async function importTransfers(
   run: IngestionRun,
   playerIds: Map<string, string>,
   clubIds: Map<string, string>,

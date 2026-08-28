@@ -16,6 +16,7 @@
     "data:import": "tsx services/ingestion/src/cli.ts import",
     "data:update": "tsx services/ingestion/src/cli.ts update",
     "reep:resolve": "tsx services/ingestion/src/cli.ts resolve",
+    "recovery:merged-players": "tsx services/ingestion/src/cli.ts recover",
     "quality:check": "tsx services/ingestion/src/cli.ts quality",
     "signals:compute": "tsx services/ingestion/src/cli.ts signals",
     "intel:hourly": "tsx services/ingestion/src/cli.ts hourly",

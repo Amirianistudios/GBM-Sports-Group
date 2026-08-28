@@ -1,0 +1,93 @@
+# ---------------------------------------------------------------------------
+# Targeted re-ingestion for the survivors of the defective merge.
+#
+# Not scheduled, on purpose. Recovery is a bounded operation over a known
+# cohort (the 46 players in v_merge_recovery_queue), not a feed: it runs when
+# a person decides it should, and each run records a per-player attempt in
+# merge_recovery_attempts. Re-running is safe — every write goes through the
+# same natural-key upserts as the weekly import, so rows update rather than
+# duplicate — but a re-run should be a decision, because a PARTIAL outcome
+# means something blocked a row and repetition alone will not unblock it.
+#
+# Needs a runner rather than a serverless function: the Transfermarkt dataset
+# is ~230 MB across eight tables, and the service-role key lives here, not in
+# Vercel.
+#
+# Secrets:
+#   NEXT_PUBLIC_SUPABASE_URL    project URL; defaulted below, public by design
+#   SUPABASE_SERVICE_ROLE_KEY   service key; bypasses RLS; never printed
+# ---------------------------------------------------------------------------
+name: merge-recovery
+
+on:
+  # Touching the marker file starts a run by hand, the same mechanism the
+  # other ingestion workflows use — the GitHub App that pushes here cannot
+  # call workflow_dispatch.
+  push:
+    branches: [main]
+    paths: ['.github/recovery-trigger']
+  workflow_dispatch:
+
+# Never overlap the weekly import, the Reep enrichment or the hourly refresh:
+# all of them write to the same player tables.
+concurrency:
+  group: gbm-ingestion
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || 'https://tyzndcjuiffnyhluddce.supabase.co' }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # Fails loudly if the service key is missing rather than downloading
+      # 230 MB and then discovering it cannot write.
+      - name: Preflight
+        run: pnpm ingest:preflight | tee logs-preflight.txt
+
+      - name: Recover merge survivors
+        run: pnpm recovery:merged-players | tee logs-recover.txt
+
+      # The recovery changes exactly the counts the quality report watches.
+      - name: Quality check
+        if: always()
+        run: pnpm quality:check | tee logs-quality.txt
+
+      - name: Run summary
+        if: always()
+        run: |
+          {
+            echo '## Merge recovery'
+            echo '```'
+            tail -80 logs-recover.txt 2>/dev/null
+            echo '```'
+            echo '### Quality'
+            echo '```'
+            tail -30 logs-quality.txt 2>/dev/null
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Retain logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: merge-recovery-${{ github.run_number }}
+          path: logs-*.txt

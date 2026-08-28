@@ -6,6 +6,7 @@
  *   pnpm data:import  [--max-players N] [--since-season Y] [--skip-valuations]
  *   pnpm data:update                   download if newer, then import + resolve + signals
  *   pnpm reep:resolve                  attach cross-provider identities via Reep
+ *   pnpm recovery:merged-players       re-ingest the survivors of the defective merge
  *   pnpm signals:compute               recompute discovery signals
  *   pnpm quality:check                 report data quality
  *   pnpm ingest:status                 recent runs and row counts
@@ -16,6 +17,7 @@
 import { CORE_TABLES, STATS_TABLES, checkForUpdate, download, readManifest } from './dataset.js';
 import { importTransfermarkt } from './transfermarkt/import.js';
 import { resolveThroughReep } from './reep/resolve.js';
+import { recoverMergedPlayers } from './transfermarkt/recovery.js';
 import { runQualityChecks } from './quality.js';
 import { runPreflight } from './preflight.js';
 import { verifyEndToEnd } from './verify.js';
@@ -86,6 +88,23 @@ async function cmdResolve(): Promise<void> {
   await IngestionRun.wrap('entity_resolution', { providerCode: 'REEP' }, async (run) => {
     await resolveThroughReep(run, log);
   });
+}
+
+async function cmdRecover(): Promise<void> {
+  log('Merge recovery — targeted re-ingestion for the merge survivors');
+  log('');
+  await IngestionRun.wrap(
+    'merge_recovery',
+    { providerCode: 'TRANSFERMARKT_DATASET' },
+    async (run) => {
+      const r = await recoverMergedPlayers(run, log);
+      log('');
+      log(
+        `${r.attempted} survivors attempted (${r.recoverable} recoverable); ` +
+          `${r.stillFlagged} remain below population coverage.`,
+      );
+    },
+  );
 }
 
 async function cmdSignals(): Promise<void> {
@@ -229,6 +248,7 @@ const COMMANDS: Record<string, () => Promise<void>> = {
   import: cmdImport,
   update: cmdUpdate,
   resolve: cmdResolve,
+  recover: cmdRecover,
   signals: cmdSignals,
   quality: cmdQuality,
   status: cmdStatus,

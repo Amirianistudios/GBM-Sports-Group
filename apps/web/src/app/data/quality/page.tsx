@@ -39,7 +39,23 @@ interface RecoveryRow {
   representation: number;
   raw_payloads: number;
   likely_lost_rows: boolean;
+  recovery_state: string;
+  last_attempted_at: string | null;
 }
+
+/**
+ * What each recovery state honestly means. RECOVERED is source-complete —
+ * GBM holds at least what the Transfermarkt dataset carries for that id —
+ * never history-complete: the defective merge kept no audit, so anything it
+ * destroyed beyond the source's current horizon cannot be reconstructed.
+ */
+const RECOVERY_TONE: Record<string, { label: string; note: string; kind: 'ok' | 'warn' | 'fail' }> = {
+  RECOVERED: { label: 'recovered', note: 'source-complete', kind: 'ok' },
+  PARTIAL: { label: 'partial', note: 'source holds more', kind: 'warn' },
+  PENDING: { label: 'pending', note: 'not yet attempted', kind: 'warn' },
+  MANUAL_REVIEW: { label: 'manual review', note: 'automation ends here', kind: 'fail' },
+  NO_SOURCE_AVAILABLE: { label: 'no source', note: 'nothing to re-read', kind: 'fail' },
+};
 
 /**
  * What each check means, and when a number stops being acceptable. A check
@@ -105,8 +121,14 @@ const CHECKS: {
   },
   {
     key: 'merge_survivors_needing_reingest',
-    label: 'Merge survivors below population coverage',
-    note: 'Players that survived a merge under the defective function and now hold fewer market values and transfers than their peers.',
+    label: 'Merge survivors awaiting recovery',
+    note: 'Survivors of the defective merge whose recovery is PENDING or PARTIAL — the part a re-run of recovery:merged-players can still act on.',
+    warnAbove: 0,
+  },
+  {
+    key: 'merge_recovery_manual_review',
+    label: 'Merge recovery needing a human',
+    note: 'Survivors automation cannot recover: only raw payloads remain, or the Transfermarkt dataset does not know their id.',
     warnAbove: 0,
   },
   {
@@ -170,7 +192,7 @@ export default async function DataQualityPage() {
     supabase
       .from('v_merge_recovery_queue')
       .select(
-        'player_id, full_name, transfermarkt_id, season_stats, market_values, transfers, contracts, representation, raw_payloads, likely_lost_rows',
+        'player_id, full_name, transfermarkt_id, season_stats, market_values, transfers, contracts, representation, raw_payloads, likely_lost_rows, recovery_state, last_attempted_at',
       )
       .order('market_values', { ascending: true })
       .limit(50),
@@ -278,9 +300,9 @@ export default async function DataQualityPage() {
             </h2>
             <p className="text-xs mb-2 max-w-2xl" style={{ color: 'var(--muted)' }}>
               Players merged under the defective function, which kept no audit — so what it removed
-              cannot be listed, only inferred. A player flagged here holds fewer market values and
-              transfers than the population average, which is where that defect bit. Recovery is a
-              targeted re-import, not a database repair.
+              cannot be listed, only inferred. Recovery is a targeted re-import from the
+              Transfermarkt dataset, not a database repair: <em>recovered</em> means GBM holds
+              everything that source still carries, never that the destroyed history came back.
             </p>
             <div className="surface overflow-x-auto">
               {queue.length === 0 ? (
@@ -312,13 +334,22 @@ export default async function DataQualityPage() {
                         <td className="px-2 py-2 text-right tabular-nums">{r.transfers}</td>
                         <td className="px-2 py-2 text-right tabular-nums">{r.raw_payloads}</td>
                         <td className="px-4 py-2">
-                          {r.likely_lost_rows ? (
-                            <span className="badge badge-neutral">re-ingest</span>
-                          ) : (
-                            <span className="text-xs" style={{ color: 'var(--muted)' }}>
-                              at population level
-                            </span>
-                          )}
+                          {(() => {
+                            const tone = RECOVERY_TONE[r.recovery_state] ?? RECOVERY_TONE.PENDING;
+                            return (
+                              <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                                <span
+                                  aria-hidden
+                                  className="inline-block rounded-full shrink-0"
+                                  style={{ width: 6, height: 6, background: TONE[tone.kind].dot }}
+                                />
+                                <span className="text-xs">{tone.label}</span>
+                                <span className="text-[0.7rem]" style={{ color: 'var(--muted)' }}>
+                                  {tone.note}
+                                </span>
+                              </span>
+                            );
+                          })()}
                         </td>
                       </tr>
                     ))}

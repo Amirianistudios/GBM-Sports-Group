@@ -1883,6 +1883,57 @@ export type Database = {
           },
         ]
       }
+      merge_recovery_attempts: {
+        Row: {
+          after_coverage: Json
+          attempted_at: string
+          before_coverage: Json
+          id: string
+          player_id: string
+          run_id: string | null
+          source_availability: Json | null
+          state: string
+          tm_id: string | null
+        }
+        Insert: {
+          after_coverage: Json
+          attempted_at?: string
+          before_coverage: Json
+          id?: string
+          player_id: string
+          run_id?: string | null
+          source_availability?: Json | null
+          state: string
+          tm_id?: string | null
+        }
+        Update: {
+          after_coverage?: Json
+          attempted_at?: string
+          before_coverage?: Json
+          id?: string
+          player_id?: string
+          run_id?: string | null
+          source_availability?: Json | null
+          state?: string
+          tm_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "merge_recovery_attempts_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "merge_recovery_attempts_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "ingestion_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organization_members: {
         Row: {
           created_at: string
@@ -4903,11 +4954,13 @@ export type Database = {
           contracts: number | null
           external_ids: number | null
           full_name: string | null
+          last_attempted_at: string | null
           likely_lost_rows: boolean | null
           market_values: number | null
           merged_at: string | null
           player_id: string | null
           raw_payloads: number | null
+          recovery_state: string | null
           representation: number | null
           season_stats: number | null
           source_facts: number | null
