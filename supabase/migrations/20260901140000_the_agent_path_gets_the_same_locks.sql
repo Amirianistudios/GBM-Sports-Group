@@ -1,5 +1,5 @@
 -- ============================================================================
--- GBM INTELLIGENCE — 0043 THE AGENT PATH GETS THE SAME LOCKS AS EVERYTHING ELSE
+-- GBM INTELLIGENCE — 0044 THE AGENT PATH GETS THE SAME LOCKS AS EVERYTHING ELSE
 -- ----------------------------------------------------------------------------
 -- A parallel session built a Transfermarkt/SofaScore ingestion path directly
 -- against production: sixteen migrations, twenty objects, no repo file for any

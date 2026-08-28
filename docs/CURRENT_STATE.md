@@ -1,13 +1,107 @@
 # Current state
 
-Last verified: 2026-08-20. Every number below was read from the live project or
-the repository, not carried over from a previous document.
+Last verified: 2026-08-28. Every number below was read from the live project or
+the repository, not carried over from a previous document. The 2026-08-20
+section further down is kept as the record of the staged import; where it and
+this section disagree on a count, this section is the current one.
 
 Read this file and `CLAUDE.md` first. They should be enough to continue without
 re-deriving the project. The audit that re-verified everything is
 [`GBM_CURRENT_STATE_AUDIT.md`](GBM_CURRENT_STATE_AUDIT.md); the data-execution
 plan now in flight is
 [`GBM_DATA_IMPLEMENTATION_PLAN.md`](GBM_DATA_IMPLEMENTATION_PLAN.md).
+
+## Verified on 2026-08-28, after the audit branch merged to `main`
+
+`claude/gbm-project-audit-b4dzzs` merged into `main` as **`f6ad141`**, a
+`--no-ff` merge of eight commits. There was nothing to reconcile: `origin/main`
+(`14d5016`) was itself the merge base, so the branch was a strict descendant
+and no conflict was possible. 31 files, all migrations added rather than
+modified; `CLAUDE.md` untouched.
+
+**Repository**
+
+| | |
+|---|---:|
+| migration files in `supabase/migrations/` | **43** |
+| migration rows recorded in Supabase | **66** (65 distinct names) |
+| applied names with no matching repo filename | **25** |
+| repo filenames never applied under that name | **3** |
+| live objects with no representation in the repo | **0** |
+
+The 25 is a *ledger-name* mismatch, not an object gap, and it is the honest
+number to quote. Objects applied out-of-band were recorded under their
+apply-time names (`sofascore_ingest_fn_v5`, `claude_tm_queue_rpc`, and so on)
+while the repository represents the same objects under different filenames.
+Every object that exists in production is now created by some file in
+`supabase/migrations/` — that was not true before this merge. The three repo
+filenames with no matching ledger row are `harden_views_and_functions` and
+`natural_key_constraints` (applied under different names) and
+`capture_the_out_of_band_objects`, which is deliberately unapplied.
+
+`supabase db push` would therefore still try to replay files it thinks are
+new. Reconciling the ledger is a separate, deliberate job.
+
+**Database** (project `tyzndcjuiffnyhluddce`, 67 tables, 12 views)
+
+| Table | Rows | | Table | Rows |
+|---|---:|---|---|---:|
+| players | **13,296** | | player_season_stats | **40,326** |
+| clubs | **1,000** | | player_percentiles | **33,670** |
+| competitions | **78** | | market_values | **117,708** |
+| seasons | **555** | | contracts | **8,605** |
+| player_external_ids | **53,386** | | representation_records | **8,328** |
+| discovery_signals (current) | **12,825** | | intel_reports | **731** |
+| watchlist_players | **49** | | player_news | **7** |
+| gbm_portfolio | **15** | | recruitment_requests | **0** |
+| ingestion_runs | **104** (103 SUCCESS) | | ingestion_errors | **1** |
+| auth users | **4** | | `v_claude_candidates` | **6,141** |
+
+**Cache coverage** — all six fields were globally dead before this work;
+`cached_season_minutes` stood at 0 of 13,296 and `cached_league` at 1.
+
+| Column | Populated |
+|---|---:|
+| `caches_refreshed_at` | 13,296 |
+| `cached_market_value` | 9,496 |
+| `cached_contract_expires` | 7,963 |
+| `cached_opportunity` | 7,861 |
+| `cached_season_minutes` | 7,197 |
+| `cached_league` | 7,197 |
+| `cached_competition_id` | 7,197 |
+
+Rows where `cached_league` disagrees with `cached_competition_id`: **0**. The
+current season is chosen per player, and 16 distinct seasons are in play —
+including the calendar-year `2026` (1,189 players), which the old global
+`max(season.name)` could never select because `'2026'` sorts below
+`'2026/2027'`.
+
+**League strength** — 22 of 78 competitions rated, 5,730 players reaching a
+rating. Same-name leagues hold independent values (Russia 46.00 vs Ukraine
+40.10); Germany is rated 48.20 and Austria left unrated for want of a squad
+rather than handed Germany's number; no continental competition is rated.
+Uzbekistan 29.70, Kazakhstan 30.50, Georgia 24.90.
+
+**Security** — Supabase advisors: **0 ERROR**. Both previous errors
+(`security_definer_view` on `v_claude_candidates`, `rls_disabled_in_public` on
+`sofascore_tournaments`) and all 13 `function_search_path_mutable` warnings are
+cleared. No SECURITY DEFINER function in `public` carries a mutable
+`search_path`; no table in `public` has RLS disabled; the nine unguarded
+writers are unreachable from the API; the agent secret is a SHA-256 digest in a
+table with no grant to any client role. What the advisor still reports is the
+pre-existing role helpers, `claude_tm_queue` (whose token is its
+authentication), and leaked-password protection being off in Auth.
+
+**Generated types** — `pnpm db:types` cannot run here: it needs
+`SUPABASE_ACCESS_TOKEN`, which this environment does not have. Both copies were
+therefore updated by hand for `players.cached_competition_id` and then checked
+against the live schema: 37 columns each, exact match with
+`information_schema`, the column present in Row/Insert/Update, the
+`players_cached_competition_id_fkey` relationship present, and the two files
+byte-identical. Regenerate with `pnpm db:types` when a token is available; do
+not delete the manual entries in the meantime.
+
+---
 
 **Headline change on 2026-08-20: the staged production import has run and
 verified.** After a full dress rehearsal on a local Supabase stack (which
@@ -35,13 +129,15 @@ records verified still present; policies, RLS and views verified unchanged.
 
 Verified from the repository root:
 
+Re-run on 2026-08-28 on merged `main`:
+
 | Command | Result |
 |---|---|
 | `pnpm install` | passes — 5 workspace projects |
 | `pnpm typecheck` | passes — all 4 packages |
-| `pnpm lint` | passes — 0 errors, 6 warnings |
-| `pnpm test` | passes — 19 tests, 3 files |
-| `pnpm build` | passes — 12 routes compiled |
+| `pnpm lint` | passes — 0 errors, 0 warnings |
+| `pnpm test` | passes — **123 tests, 10 files** |
+| `pnpm build` | passes — **25 routes compiled** |
 
 The five gates are now mechanical: `.github/workflows/ci.yml` runs them on
 every push and pull request (all runs green so far). `data-refresh.yml` is the
@@ -135,12 +231,18 @@ What those numbers mean:
 
 ### Migrations
 
-Every migration below is applied to the hosted project, and a database rebuilt
-from `supabase/migrations/` holds every object the live one does. Three had
-been applied directly to the database in an earlier session and existed in
-**no file** — `security_hardening`, `natural_key_constraints` and the
-intelligence views. They have been captured, so the repository is no longer
-missing constraints and hardening the live database has.
+Every migration below is applied to the hosted project. As of 2026-08-28 a
+database rebuilt from `supabase/migrations/` again holds every object the live
+one does — see the 2026-08-28 section at the top for the counts, and note that
+this stopped being true between 2026-08-24 and 2026-08-28, when twenty objects
+existed only in production. Three earlier migrations had likewise been applied
+directly and existed in **no file** — `security_hardening`,
+`natural_key_constraints` and the intelligence views; they were captured at the
+time.
+
+The lesson both times is the same: applying DDL straight to production creates
+a gap that nothing detects on its own. The second occurrence hid a set of
+security defects for four days because there was no diff for anyone to review.
 
 The *names* are not one-for-one, and this section used to claim they were; see
 the reconciliation under the table for what the two lists actually contain and
@@ -912,7 +1014,7 @@ written down. A rebuild from the repo would not have produced production, and
 nobody had reviewed any of it because there was nothing to review.
 
 What the missing review had let through, found by the Supabase linter and a
-read of the catalog, and fixed in migration 0043:
+read of the catalog, and fixed in migration 0044:
 
 - **Nine SECURITY DEFINER functions with no authorisation check, executable by
   `anon`** — the unauthenticated role whose key ships in the browser bundle.
@@ -931,7 +1033,10 @@ read of the catalog, and fixed in migration 0043:
   SHA-256 digest; the caller sends the same string and the function hashes it
   before comparing, so nothing had to be coordinated.
 
-Migration 0044 captures all twenty objects, transcribed from the live catalog.
+Migration 0043 captures all twenty objects, transcribed from the live catalog.
+It is ordered before 0044 deliberately: the hardening revokes, alters and pins
+sixteen objects that only the capture creates, so on a rebuild from empty it
+would fail on its first statement in the other order.
 It has **not been executed** — the objects already exist, and applying a
 transcription over working production functions risks more than it proves.
 What was verified instead: all fourteen function bodies hash identically to

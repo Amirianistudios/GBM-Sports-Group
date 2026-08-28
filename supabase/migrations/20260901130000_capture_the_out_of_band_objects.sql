@@ -1,5 +1,5 @@
 -- ============================================================================
--- GBM INTELLIGENCE — 0044 CAPTURE THE OBJECTS THAT WERE NEVER COMMITTED
+-- GBM INTELLIGENCE — 0043 CAPTURE THE OBJECTS THAT WERE NEVER COMMITTED
 -- ----------------------------------------------------------------------------
 -- CLAUDE.md says GitHub is the source of truth for the application. It stopped
 -- being true. Sixty-four migrations are recorded in the database against
@@ -21,8 +21,14 @@
 -- ingestion straight against production; three came from earlier work in this
 -- repo that was applied and never written down. A rebuild from
 -- `supabase/migrations/` would have produced a database missing all of it,
--- and 0043 had to fix a set of security defects nobody had reviewed because
+-- and 0044 has to fix a set of security defects nobody had reviewed because
 -- there was nothing to review.
+--
+-- This file is ordered BEFORE 0044 on purpose. 0044 revokes, alters and
+-- pins sixteen objects that only this file creates, so on a rebuild from an
+-- empty database it fails on its first statement unless the objects exist
+-- first. That is also the true order of events: these objects were created
+-- on 2026-08-28 around 10:21-10:51, and the hardening was applied at 11:29.
 --
 -- Every definition below is transcribed from the live catalog —
 -- `pg_get_functiondef`, `pg_get_viewdef`, `pg_get_constraintdef` — not written
@@ -243,7 +249,7 @@ create policy "portfolio managers delete profiles" on club_recruitment_profiles
 
 -- The external scraper's drop-box: an unauthenticated INSERT, restricted to
 -- the three sources it collects. anon cannot read back, update or delete
--- through it, and 0043 records the decision to keep it rather than break a
+-- through it, and 0044 records the decision to keep it rather than break a
 -- running collection.
 drop policy if exists "staging_ingest_anon_insert" on staging_ingest;
 create policy "staging_ingest_anon_insert" on staging_ingest
@@ -275,7 +281,7 @@ grant select, insert on table staging_ingest to authenticated;
 -- security_invoker matters here more than anywhere: the view exposes name,
 -- date of birth, nationality, market value and agency for every player it
 -- covers. As a definer view — which is how it was created — `anon` read all
--- of it. 0043 turned that off; this file is where the setting lives.
+-- of it. This file is where the setting lives, and 0044 re-asserts it.
 create or replace view v_claude_candidates
 with (security_invoker = on) as
 with s as (
@@ -806,7 +812,7 @@ begin
 end $function$;
 
 -- ----------------------------------------------------------------------------
--- The token-guarded queue (see 0043 for why the secret is a digest)
+-- The token-guarded queue (see 0044 for why the secret is a digest)
 -- ----------------------------------------------------------------------------
 create or replace function claude_tm_queue(p_token text, p_limit integer default 400)
 returns table(player_id uuid, full_name text, dob date, club text, nat text, has_tm boolean)
@@ -840,7 +846,7 @@ end $function$;
 -- ----------------------------------------------------------------------------
 -- Function-level grants
 -- ----------------------------------------------------------------------------
--- The nine unguarded writers stay off the API entirely; see 0043. Only the
+-- The nine unguarded writers stay off the API entirely; see 0044. Only the
 -- token-guarded queue is reachable, and only because the token is its
 -- authentication.
 revoke execute on function claude_write_reports(numeric, integer, numeric) from public, anon, authenticated;
