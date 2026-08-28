@@ -189,6 +189,105 @@ export type Database = {
           },
         ]
       }
+      club_recruitment_profiles: {
+        Row: {
+          age_max: number | null
+          age_min: number | null
+          club_id: string | null
+          competition_id: string | null
+          competition_level: string | null
+          contract_prefs: string[]
+          country_id: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          keywords: string[]
+          max_salary_eur: number | null
+          max_transfer_eur: number | null
+          nationality_rule: string | null
+          position: string | null
+          starter_vs_project: string | null
+          tactical_role: string | null
+          updated_at: string
+        }
+        Insert: {
+          age_max?: number | null
+          age_min?: number | null
+          club_id?: string | null
+          competition_id?: string | null
+          competition_level?: string | null
+          contract_prefs?: string[]
+          country_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          keywords?: string[]
+          max_salary_eur?: number | null
+          max_transfer_eur?: number | null
+          nationality_rule?: string | null
+          position?: string | null
+          starter_vs_project?: string | null
+          tactical_role?: string | null
+          updated_at?: string
+        }
+        Update: {
+          age_max?: number | null
+          age_min?: number | null
+          club_id?: string | null
+          competition_id?: string | null
+          competition_level?: string | null
+          contract_prefs?: string[]
+          country_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          keywords?: string[]
+          max_salary_eur?: number | null
+          max_transfer_eur?: number | null
+          nationality_rule?: string | null
+          position?: string | null
+          starter_vs_project?: string | null
+          tactical_role?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "club_recruitment_profiles_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_recruitment_profiles_competition_id_fkey"
+            columns: ["competition_id"]
+            isOneToOne: false
+            referencedRelation: "competitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_recruitment_profiles_competition_id_fkey"
+            columns: ["competition_id"]
+            isOneToOne: false
+            referencedRelation: "v_league_options"
+            referencedColumns: ["league_id"]
+          },
+          {
+            foreignKeyName: "club_recruitment_profiles_competition_id_fkey"
+            columns: ["competition_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_discovery"
+            referencedColumns: ["league_id"]
+          },
+          {
+            foreignKeyName: "club_recruitment_profiles_country_id_fkey"
+            columns: ["country_id"]
+            isOneToOne: false
+            referencedRelation: "countries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clubs: {
         Row: {
           city: string | null
@@ -756,6 +855,9 @@ export type Database = {
           assigned_staff_id: string | null
           created_at: string
           created_by: string | null
+          guardian_consent_noted_at: string | null
+          guardian_consent_noted_by: string | null
+          guardian_consent_on_file: boolean
           notes: string | null
           player_id: string
           representation_end: string | null
@@ -770,6 +872,9 @@ export type Database = {
           assigned_staff_id?: string | null
           created_at?: string
           created_by?: string | null
+          guardian_consent_noted_at?: string | null
+          guardian_consent_noted_by?: string | null
+          guardian_consent_on_file?: boolean
           notes?: string | null
           player_id: string
           representation_end?: string | null
@@ -784,6 +889,9 @@ export type Database = {
           assigned_staff_id?: string | null
           created_at?: string
           created_by?: string | null
+          guardian_consent_noted_at?: string | null
+          guardian_consent_noted_by?: string | null
+          guardian_consent_on_file?: boolean
           notes?: string | null
           player_id?: string
           representation_end?: string | null
@@ -1204,6 +1312,48 @@ export type Database = {
             referencedColumns: ["code"]
           },
         ]
+      }
+      intel_ops_board: {
+        Row: {
+          agent_code: string
+          data_collected: string | null
+          display_name: string
+          errors_limits: string | null
+          last_action: string | null
+          last_activity_at: string
+          mission: string | null
+          pending_decisions: string | null
+          sources_checked: string[]
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          agent_code: string
+          data_collected?: string | null
+          display_name: string
+          errors_limits?: string | null
+          last_action?: string | null
+          last_activity_at?: string
+          mission?: string | null
+          pending_decisions?: string | null
+          sources_checked?: string[]
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          agent_code?: string
+          data_collected?: string | null
+          display_name?: string
+          errors_limits?: string | null
+          last_action?: string | null
+          last_activity_at?: string
+          mission?: string | null
+          pending_decisions?: string | null
+          sources_checked?: string[]
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       intel_recommendations: {
         Row: {
@@ -1856,6 +2006,130 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "data_providers"
             referencedColumns: ["code"]
+          },
+        ]
+      }
+      player_evaluations: {
+        Row: {
+          adaptation_score: number | null
+          age_fit: number | null
+          ai_agent_id: string | null
+          ai_explanation: string | null
+          competition_fit: number | null
+          computed_at: string
+          computed_explanation: string | null
+          confidence_level: number | null
+          contract_fit: number | null
+          created_at: string
+          development_fit: number | null
+          financial_fit: number | null
+          id: string
+          missing_information: string[]
+          overall_score: number | null
+          player_id: string
+          position_fit: number | null
+          recommendation_status: string | null
+          recruitment_request_id: string
+          risks: string[]
+          score_breakdown: Json
+          statistical_fit: number | null
+          strengths: string[]
+          technical_score: number | null
+        }
+        Insert: {
+          adaptation_score?: number | null
+          age_fit?: number | null
+          ai_agent_id?: string | null
+          ai_explanation?: string | null
+          competition_fit?: number | null
+          computed_at?: string
+          computed_explanation?: string | null
+          confidence_level?: number | null
+          contract_fit?: number | null
+          created_at?: string
+          development_fit?: number | null
+          financial_fit?: number | null
+          id?: string
+          missing_information?: string[]
+          overall_score?: number | null
+          player_id: string
+          position_fit?: number | null
+          recommendation_status?: string | null
+          recruitment_request_id: string
+          risks?: string[]
+          score_breakdown?: Json
+          statistical_fit?: number | null
+          strengths?: string[]
+          technical_score?: number | null
+        }
+        Update: {
+          adaptation_score?: number | null
+          age_fit?: number | null
+          ai_agent_id?: string | null
+          ai_explanation?: string | null
+          competition_fit?: number | null
+          computed_at?: string
+          computed_explanation?: string | null
+          confidence_level?: number | null
+          contract_fit?: number | null
+          created_at?: string
+          development_fit?: number | null
+          financial_fit?: number | null
+          id?: string
+          missing_information?: string[]
+          overall_score?: number | null
+          player_id?: string
+          position_fit?: number | null
+          recommendation_status?: string | null
+          recruitment_request_id?: string
+          risks?: string[]
+          score_breakdown?: Json
+          statistical_fit?: number | null
+          strengths?: string[]
+          technical_score?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "player_fit_scores_ai_agent_id_fkey"
+            columns: ["ai_agent_id"]
+            isOneToOne: false
+            referencedRelation: "intel_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "player_fit_scores_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "player_fit_scores_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_discovery"
+            referencedColumns: ["player_id"]
+          },
+          {
+            foreignKeyName: "player_fit_scores_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_source_coverage"
+            referencedColumns: ["player_id"]
+          },
+          {
+            foreignKeyName: "player_fit_scores_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "v_representation_opportunities"
+            referencedColumns: ["player_id"]
+          },
+          {
+            foreignKeyName: "player_fit_scores_requirement_id_fkey"
+            columns: ["recruitment_request_id"]
+            isOneToOne: false
+            referencedRelation: "recruitment_requests"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -3219,6 +3493,7 @@ export type Database = {
         Row: {
           birth_country_id: string | null
           birth_place: string | null
+          cached_competition_id: string | null
           cached_contract_expires: string | null
           cached_league: string | null
           cached_market_value: number | null
@@ -3257,6 +3532,7 @@ export type Database = {
         Insert: {
           birth_country_id?: string | null
           birth_place?: string | null
+          cached_competition_id?: string | null
           cached_contract_expires?: string | null
           cached_league?: string | null
           cached_market_value?: number | null
@@ -3295,6 +3571,7 @@ export type Database = {
         Update: {
           birth_country_id?: string | null
           birth_place?: string | null
+          cached_competition_id?: string | null
           cached_contract_expires?: string | null
           cached_league?: string | null
           cached_market_value?: number | null
@@ -3336,6 +3613,13 @@ export type Database = {
             columns: ["birth_country_id"]
             isOneToOne: false
             referencedRelation: "countries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "players_cached_competition_id_fkey"
+            columns: ["cached_competition_id"]
+            isOneToOne: false
+            referencedRelation: "competitions"
             referencedColumns: ["id"]
           },
           {
@@ -3411,6 +3695,194 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "data_providers"
             referencedColumns: ["code"]
+          },
+        ]
+      }
+      recruitment_matches: {
+        Row: {
+          computed_at: string
+          confidence: number | null
+          explanation: Json
+          financial: number | null
+          id: string
+          market_adaptation: number | null
+          missing_fields: string[]
+          overall: number
+          player_id: string
+          profile_id: string
+          recommendation: Database["public"]["Enums"]["recommendation"] | null
+          recommendation_one_liner: string
+          risk: number | null
+          scores_are_ai: boolean
+          statistical: number | null
+          technical: number | null
+          verified_at: string | null
+          verified_by: string | null
+        }
+        Insert: {
+          computed_at?: string
+          confidence?: number | null
+          explanation?: Json
+          financial?: number | null
+          id?: string
+          market_adaptation?: number | null
+          missing_fields?: string[]
+          overall: number
+          player_id: string
+          profile_id: string
+          recommendation?: Database["public"]["Enums"]["recommendation"] | null
+          recommendation_one_liner: string
+          risk?: number | null
+          scores_are_ai?: boolean
+          statistical?: number | null
+          technical?: number | null
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Update: {
+          computed_at?: string
+          confidence?: number | null
+          explanation?: Json
+          financial?: number | null
+          id?: string
+          market_adaptation?: number | null
+          missing_fields?: string[]
+          overall?: number
+          player_id?: string
+          profile_id?: string
+          recommendation?: Database["public"]["Enums"]["recommendation"] | null
+          recommendation_one_liner?: string
+          risk?: number | null
+          scores_are_ai?: boolean
+          statistical?: number | null
+          technical?: number | null
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recruitment_matches_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recruitment_matches_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_discovery"
+            referencedColumns: ["player_id"]
+          },
+          {
+            foreignKeyName: "recruitment_matches_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_source_coverage"
+            referencedColumns: ["player_id"]
+          },
+          {
+            foreignKeyName: "recruitment_matches_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "v_representation_opportunities"
+            referencedColumns: ["player_id"]
+          },
+          {
+            foreignKeyName: "recruitment_matches_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "club_recruitment_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recruitment_requests: {
+        Row: {
+          club_id: string | null
+          club_name: string | null
+          competition_level: string | null
+          contract_preference: string | null
+          country: string | null
+          created_at: string
+          created_by: string | null
+          currency: string
+          id: string
+          league: string | null
+          notes: string | null
+          player_profile_description: string | null
+          position_required: string
+          preferred_age_max: number | null
+          preferred_age_min: number | null
+          preferred_markets: string[]
+          salary_budget_max: number | null
+          status: string
+          tactical_role: string | null
+          title: string | null
+          transfer_budget_max: number | null
+          transfer_budget_min: number | null
+          updated_at: string
+          urgency: string | null
+        }
+        Insert: {
+          club_id?: string | null
+          club_name?: string | null
+          competition_level?: string | null
+          contract_preference?: string | null
+          country?: string | null
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          id?: string
+          league?: string | null
+          notes?: string | null
+          player_profile_description?: string | null
+          position_required: string
+          preferred_age_max?: number | null
+          preferred_age_min?: number | null
+          preferred_markets?: string[]
+          salary_budget_max?: number | null
+          status?: string
+          tactical_role?: string | null
+          title?: string | null
+          transfer_budget_max?: number | null
+          transfer_budget_min?: number | null
+          updated_at?: string
+          urgency?: string | null
+        }
+        Update: {
+          club_id?: string | null
+          club_name?: string | null
+          competition_level?: string | null
+          contract_preference?: string | null
+          country?: string | null
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          id?: string
+          league?: string | null
+          notes?: string | null
+          player_profile_description?: string | null
+          position_required?: string
+          preferred_age_max?: number | null
+          preferred_age_min?: number | null
+          preferred_markets?: string[]
+          salary_budget_max?: number | null
+          status?: string
+          tactical_role?: string | null
+          title?: string | null
+          transfer_budget_max?: number | null
+          transfer_budget_min?: number | null
+          updated_at?: string
+          urgency?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "club_requirements_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -4280,6 +4752,8 @@ export type Database = {
           date_of_birth: string | null
           foot: Database["public"]["Enums"]["preferred_foot"] | null
           full_name: string | null
+          guardian_consent: boolean | null
+          guardian_documented: boolean | null
           height_cm: number | null
           hero_image_url: string | null
           is_minor: boolean | null
@@ -4554,6 +5028,89 @@ export type Database = {
         }
         Relationships: []
       }
+      v_recruitment_shortlist: {
+        Row: {
+          adaptation_score: number | null
+          age: number | null
+          age_fit: number | null
+          ai_agent_id: string | null
+          ai_explanation: string | null
+          club_name: string | null
+          competition_fit: number | null
+          computed_at: string | null
+          confidence_band: string | null
+          confidence_level: number | null
+          contract_expires_on: string | null
+          contract_fit: number | null
+          development_fit: number | null
+          financial_fit: number | null
+          foot: Database["public"]["Enums"]["preferred_foot"] | null
+          full_name: string | null
+          height_cm: number | null
+          id: string | null
+          league_name: string | null
+          market_value: number | null
+          missing_information: string[] | null
+          nationality: string | null
+          overall_score: number | null
+          player_id: string | null
+          portrait_url: string | null
+          position_fit: number | null
+          primary_position: string | null
+          ranked_score: number | null
+          recommendation_status: string | null
+          recruitment_request_id: string | null
+          risks: string[] | null
+          score_breakdown: Json | null
+          statistical_fit: number | null
+          strengths: string[] | null
+          technical_score: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "player_fit_scores_ai_agent_id_fkey"
+            columns: ["ai_agent_id"]
+            isOneToOne: false
+            referencedRelation: "intel_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "player_fit_scores_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "player_fit_scores_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_discovery"
+            referencedColumns: ["player_id"]
+          },
+          {
+            foreignKeyName: "player_fit_scores_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_source_coverage"
+            referencedColumns: ["player_id"]
+          },
+          {
+            foreignKeyName: "player_fit_scores_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "v_representation_opportunities"
+            referencedColumns: ["player_id"]
+          },
+          {
+            foreignKeyName: "player_fit_scores_requirement_id_fkey"
+            columns: ["recruitment_request_id"]
+            isOneToOne: false
+            referencedRelation: "recruitment_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       v_representation_opportunities: {
         Row: {
           age: number | null
@@ -4581,6 +5138,10 @@ export type Database = {
       }
     }
     Functions: {
+      gbm_age_fit: {
+        Args: { p_age: number; p_max: number; p_min: number }
+        Returns: number
+      }
       gbm_can_manage_portfolio: { Args: never; Returns: boolean }
       gbm_can_manage_staff: { Args: never; Returns: boolean }
       gbm_can_view_guardian_data: { Args: never; Returns: boolean }
@@ -4592,9 +5153,44 @@ export type Database = {
           signal_type: string
         }[]
       }
+      gbm_compute_fit_scores: {
+        Args: { p_requirement: string }
+        Returns: {
+          scored: number
+          with_full_data: number
+        }[]
+      }
       gbm_current_user_role: {
         Args: never
         Returns: Database["public"]["Enums"]["gbm_role"]
+      }
+      gbm_generate_shortlist: {
+        Args: { p_request: string }
+        Returns: {
+          evaluated: number
+          insufficient: number
+          strong: number
+        }[]
+      }
+      gbm_intel__identity: {
+        Args: {
+          p_data: Json
+          p_player: string
+          p_provider: string
+          p_state: Database["public"]["Enums"]["fact_state"]
+          p_url: string
+        }
+        Returns: Json
+      }
+      gbm_intel__record: {
+        Args: {
+          p_data: Json
+          p_kind: string
+          p_player: string
+          p_provider: string
+          p_url: string
+        }
+        Returns: Json
       }
       gbm_intel_current_agent: { Args: never; Returns: string }
       gbm_intel_resolve_player: {
@@ -4609,7 +5205,41 @@ export type Database = {
       }
       gbm_intel_submit: { Args: { p_submission: Json }; Returns: Json }
       gbm_is_member: { Args: never; Returns: boolean }
+      gbm_match_profile: {
+        Args: { p_profile_id: string }
+        Returns: {
+          computed_at: string
+          confidence: number | null
+          explanation: Json
+          financial: number | null
+          id: string
+          market_adaptation: number | null
+          missing_fields: string[]
+          overall: number
+          player_id: string
+          profile_id: string
+          recommendation: Database["public"]["Enums"]["recommendation"] | null
+          recommendation_one_liner: string
+          risk: number | null
+          scores_are_ai: boolean
+          statistical: number | null
+          technical: number | null
+          verified_at: string | null
+          verified_by: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "recruitment_matches"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       gbm_normalize_name: { Args: { input: string }; Returns: string }
+      gbm_position_family: { Args: { p_position: string }; Returns: string[] }
+      gbm_position_fit: {
+        Args: { p_actual: string; p_required: string }
+        Returns: number
+      }
       gbm_recompute_data_confidence: {
         Args: { player_ids: string[] }
         Returns: undefined

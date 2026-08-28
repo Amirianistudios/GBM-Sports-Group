@@ -27,6 +27,7 @@ export const ru: Dict = {
   'nav.players': 'Игроки',
   'nav.compare': 'Сравнение',
   'nav.clubs': 'Клубы',
+  'nav.recruitment': 'Подбор игроков',
   'nav.portfolio': 'Портфолио',
   'nav.watchlists': 'Списки наблюдения',
   'nav.scouting': 'Отчёты скаутов',
@@ -89,6 +90,7 @@ export const ru: Dict = {
   'port.alert.unverified': 'Представительство не подтверждено',
   'port.alert.minor': 'Несовершеннолетний — требуется согласие опекуна',
   'port.incomplete': 'не заполнено полей: {count}',
+  'port.consentHeld': 'Согласие опекуна получено',
 
   'players.title': 'Игроки',
   'players.search': 'Поиск по имени',

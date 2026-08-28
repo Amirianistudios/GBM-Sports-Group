@@ -29,6 +29,7 @@ export const nl: Dict = {
   'nav.players': 'Spelers',
   'nav.compare': 'Vergelijken',
   'nav.clubs': 'Clubs',
+  'nav.recruitment': 'Werving',
   'nav.portfolio': 'Portfolio',
   'nav.watchlists': 'Volglijsten',
   'nav.scouting': 'Scoutingrapporten',
@@ -91,6 +92,7 @@ export const nl: Dict = {
   'port.alert.unverified': 'Vertegenwoordiging niet geverifieerd',
   'port.alert.minor': 'Minderjarig — toestemming voogd vereist',
   'port.incomplete': '{count} gegevens ontbreken',
+  'port.consentHeld': 'Toestemming voogd aanwezig',
 
   'players.title': 'Spelers',
   'players.search': 'Zoek op naam',

@@ -28,7 +28,14 @@ player's career and no way to say which is real.
 
 | Intelligence | Where it lands | Submit as |
 |---|---|---|
-| Age, nationality, position, club, career, contract, market value, agent | `players`, `contracts`, `market_values`, `transfers`, `player_team_history`, `representation_records` | `FACT` |
+| Picture, name, date of birth, nationality, height, weight, foot, position, shirt, current club | `players` — filled only where empty | `IDENTITY` |
+| Market value | `market_values` | `VALUATION` |
+| Contract, option, loan | `contracts` | `CONTRACT` |
+| Transfer history | `transfers` | `TRANSFER` |
+| Agent and agency | `representation_records` | `REPRESENTATION` |
+| Career history, including loans | `player_team_history` | `CAREER` |
+| Injuries | `player_injuries` | `INJURY` |
+| Anything else about the canonical record | `source_facts` as an assertion | `FACT` |
 | Appearances, minutes, goals, assists, xG, xA, shots, key passes, progressive passes/carries, dribbles, duels, aerial duels, tackles, interceptions, clearances, touches in box, saves, clean sheets, heatmaps | `player_season_stats` (every one of these is already a column; heatmaps go in `advanced`) | `PERFORMANCE` |
 | Match ratings | `player_match_stats.rating` | `PERFORMANCE` |
 | News, announcements, rumours, interviews, social activity, injuries | `player_news` | `NEWS` |
@@ -191,6 +198,77 @@ supersedes the previous current one.
 
 `*_competition_id` is preferred; the `*_name` fields exist so an assessment is
 still recorded when the competition is not in the database yet.
+
+### `IDENTITY` — the player's own record
+
+```json
+{ "short_name": "Rezi Jikia", "first_name": "Rezi", "last_name": "Jikia",
+  "date_of_birth": "2008-03-11", "birth_place": "Tbilisi",
+  "nationality": "Georgia", "second_nationality": null, "birth_country": "Georgia",
+  "height_cm": 181, "weight_kg": 74, "foot": "RIGHT",
+  "primary_position": "Centre-Forward", "secondary_positions": ["Left Winger"],
+  "shirt_number": 9, "current_club": "35 Football School",
+  "image_url": "https://…", "image_credit": "RSC Anderlecht press office",
+  "source_provider": "TRANSFERMARKT", "source_url": "https://…" }
+```
+
+**A field is written only where the column is currently empty.** An existing
+Transfermarkt value or a GBM entry always wins, so re-submitting is harmless
+and can never undo a correction someone has made. The response returns
+`filled`, listing exactly which columns your submission populated — an empty
+array means everything you sent was already known.
+
+Every field you supply is *also* recorded in `source_facts`, whether or not it
+filled a column, so the profile can mark an AI-sourced value as AI-sourced.
+
+Three things to get right:
+
+- **`primary_position` is stored verbatim** and the vocabulary is
+  Transfermarkt's title case: `Goalkeeper`, `Centre-Back`, `Left-Back`,
+  `Right-Back`, `Defensive Midfield`, `Central Midfield`, `Attacking Midfield`,
+  `Left Winger`, `Right Winger`, `Centre-Forward`. Sending `ST` or `CF` creates
+  a second vocabulary and breaks the discovery filter.
+- **`foot`** is `LEFT`, `RIGHT`, `BOTH` or `UNKNOWN`. `UNKNOWN` already sits on
+  984 players and is treated as no answer, so a real value will replace it.
+- **`image_url` without `image_credit` is refused.** The platform cannot verify
+  a licence, but it will not store a picture nobody has attributed. Use club
+  press offices, federations, or another source you can name — not
+  Transfermarkt's or Instagram's protected assets.
+
+`nationality`, `birth_country` and `current_club` are matched by name against
+the reference tables. A name we do not hold is left alone rather than guessed.
+
+### The record kinds
+
+`VALUATION`, `CONTRACT`, `TRANSFER`, `REPRESENTATION`, `INJURY` and `CAREER`
+each write one provider-keyed table, exactly as `PERFORMANCE` does. A row filed
+under one provider sits beside another's rather than replacing it, so these
+need no fill-if-empty rule and re-running updates in place.
+
+```json
+// VALUATION      { "value_amount": 250000, "currency": "EUR", "valued_on": "2026-08-01", "club": "…" }
+// CONTRACT       { "club": "…", "start_date": "…", "expires_on": "2028-06-30", "option_until": "…", "is_loan": false }
+// TRANSFER       { "from_club": "…", "to_club": "…", "transfer_date": "…", "fee_amount": 150000, "is_loan": false, "is_free": false }
+// REPRESENTATION { "agency_name": "…", "agent_name": "…", "status": "KNOWN_AGENCY" }
+// INJURY         { "description": "Ankle sprain", "injury_type": "…", "started_on": "…", "expected_return_on": "…", "games_missed": 3 }
+// CAREER         { "club": "…", "start_date": "…", "end_date": "…", "is_loan": false, "is_current": true, "shirt_number": 9 }
+```
+
+`status` on `REPRESENTATION` is `KNOWN_AGENCY`, `NO_AGENCY_LISTED`, `UNKNOWN`
+or `CONFLICTING`. **`NO_AGENCY_LISTED` records what a source displayed on a
+date — it is not a claim that the player is unrepresented**, and every surface
+showing it says so.
+
+Always set `source_provider` to the site the claim came from (`TRANSFERMARKT`,
+`SOFASCORE`, `FOTMOB`, …), not to yourself. The priority ladder judges the
+source; that you fetched it is recorded separately.
+
+### Match-level statistics are not accepted yet
+
+`player_match_stats` hangs off a `matches` row, and the platform has not begun
+match-level ingestion. Submitting per-match data would duplicate on every run,
+so the kind does not exist. Season aggregates go through `PERFORMANCE`, and
+heatmaps belong in its `advanced` object.
 
 ### `NEWS`
 

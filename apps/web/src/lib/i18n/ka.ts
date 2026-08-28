@@ -42,6 +42,7 @@ export const ka: Dict = {
   'nav.players': 'მოთამაშეები',
   'nav.compare': 'შედარება',
   'nav.clubs': 'კლუბები',
+  'nav.recruitment': 'რეკრუტინგი',
   'nav.portfolio': 'პორტფოლიო',
   'nav.watchlists': 'დაკვირვების სიები',
   'nav.scouting': 'სკაუტინგის ანგარიშები',
@@ -105,6 +106,7 @@ export const ka: Dict = {
   'port.alert.unverified': 'წარმომადგენლობა დაუდასტურებელია',
   'port.alert.minor': 'არასრულწლოვანი — საჭიროა მეურვის თანხმობა',
   'port.incomplete': 'აკლია {count} ველი',
+  'port.consentHeld': 'მეურვის თანხმობა მიღებულია',
 
   'players.title': 'მოთამაშეები',
   'players.search': 'ძებნა სახელით',

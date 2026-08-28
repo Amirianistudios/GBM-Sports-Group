@@ -34,6 +34,7 @@ export const en = {
   'nav.players': 'Players',
   'nav.compare': 'Compare',
   'nav.clubs': 'Clubs',
+  'nav.recruitment': 'Recruitment',
   'nav.portfolio': 'Portfolio',
   'nav.watchlists': 'Watchlists',
   'nav.scouting': 'Scouting Reports',
@@ -98,6 +99,7 @@ export const en = {
   'port.alert.unverified': 'Representation unverified',
   'port.alert.minor': 'Minor — guardian consent required',
   'port.incomplete': '{count} details missing',
+  'port.consentHeld': 'Guardian consent on file',
 
   // ---------------------------------------------------------------- players --
   'players.title': 'Players',

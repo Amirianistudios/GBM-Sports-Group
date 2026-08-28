@@ -178,10 +178,14 @@ why they differ.
 | `20260827110000_performance_submissions_without_a_heatmap` | Coalesces `player_season_stats.advanced` so a statistics submission need not carry one |
 | `20260827120000_minimal_payloads_survive_every_branch` | Coalesces `source_facts.confidence`; refuses `source_name` and `fact_key` by name |
 | `20260827130000_a_model_is_not_a_second_source` | Excludes `AI_ASSESSED` from `player_fact_conflicts`, so a model neither corroborates nor contradicts a provider |
+| `20260828100000_guardian_consent_is_recorded_not_inferred` | Consent recorded on `gbm_portfolio`; the minor warning stops depending on the birthday |
+| `20260829100000_the_contract_reaches_the_whole_record` | IDENTITY and the record kinds; natural keys for career history and injuries |
+| `20260829110000_dispatcher_learns_the_record_kinds` | Points `gbm_intel_submit` at them and widens the accepted kinds |
+| `20260829120000_unknown_is_not_an_answer` | `foot='UNKNOWN'` treated as empty; `primary_position` stored verbatim |
 
 Re-checked against `supabase.list_migrations` on 2026-08-27. **The two name
 lists are not identical, and the earlier claim here that they were was wrong.**
-The hosted project reports 35 migrations against 30 files. Seven applied names
+The hosted project reports 39 migrations against 34 files. Seven applied names
 have no same-named file —
 
 `idempotency_constraints`, `intelligence_views`, `discovery_signals_growth_scale`,
@@ -841,9 +845,113 @@ the point — a bare count would have hidden every one of those faults.
 `DUPLICATE` is shown neutrally rather than as a failure, because a retry
 returning the first answer is the contract working as designed.
 
+### The contract now reaches the whole record
+
+The submission contract could write seven tables. Everything else a research
+team gathers — identity, height, foot, position, the club, career history,
+transfers, contracts, valuations, the agent, injuries — had either no route at
+all or a route into `source_facts` that nothing displays. **An agent could
+file a perfect record for all fifteen GBM players and every profile would
+still render blank.** Verified before changing anything: no trigger and no
+function anywhere promoted a fact into the canonical record.
+
+Migrations 0034–0035 close that. `IDENTITY` fills `players`, and `VALUATION`,
+`CONTRACT`, `TRANSFER`, `REPRESENTATION`, `INJURY` and `CAREER` write the
+provider-keyed record tables. `player_team_history` and `player_injuries`
+gained the natural keys they lacked, without which a second run would have
+duplicated rather than updated.
+
+**The rule that makes it safe is `coalesce(existing, submitted)`** — a column
+is filled only where it is currently NULL. Transfermarkt or a GBM entry always
+wins, and re-running can never change a field someone has since corrected.
+Every supplied field is also written to `source_facts`, which is what lets the
+interface mark an AI-sourced value as AI-sourced. Verified against production,
+rolled back: a first submission filled `birth_place, foot, height_cm,
+shirt_number, weight_kg`; a second carrying deliberately wrong values (height
+999, foot LEFT, position Goalkeeper) filled nothing and changed nothing.
+
+Two faults were caught in that verification, both of which would have wasted
+the exercise silently:
+
+- **`foot = 'UNKNOWN'` is the column saying it has no answer, not an answer.**
+  984 players carry it, 8 of them in the GBM portfolio, and a plain coalesce
+  treated the placeholder as a real value — so preferred foot could never have
+  been corrected for any of them.
+- **`primary_position` is stored verbatim in Transfermarkt's title case**
+  (`Centre-Back`, `Goalkeeper`). The first draft upper-cased submissions, which
+  would have created a second vocabulary and split the discovery filter.
+
+An image submitted without `image_credit` is refused by name. The platform
+cannot verify a licence, but it can decline to store a picture nobody has
+attributed.
+
+**Not accepted:** match-level statistics. `player_match_stats` hangs off a
+`matches` row, `matches` is empty by design, and its unique key treats a NULL
+`match_id` as distinct, so submissions would duplicate on every run. Season
+aggregates and heatmaps work today through `PERFORMANCE` and
+`player_season_stats.advanced`.
+
+**A sourcing limit that is not a storage limit:** SofaScore, FotMob and FBref
+are downstream Opta licensees that cannot sublicense. The xG and heatmap
+columns will hold the data; obtaining it by scraping those sites breaches
+their terms, and that applies to an external agent exactly as it applied to
+GBM's own connectors.
+
 **Open for GBM:** issue the agent's Supabase account and set its `scopes`
 (start with `NEWS` and `REPORT`), and decide whether AI recommendations should
 appear immediately or pass through a review queue first.
+
+## The repo stopped matching the database (2026-08-28)
+
+Sixty-four migrations were recorded in Supabase against forty-one files in
+`supabase/migrations/`, and twenty objects existed in production that no repo
+file created — six tables, one view and thirteen functions, most of them the
+SofaScore/Transfermarkt ingestion built directly against production by a
+parallel session, three of them earlier work here that was applied and never
+written down. A rebuild from the repo would not have produced production, and
+nobody had reviewed any of it because there was nothing to review.
+
+What the missing review had let through, found by the Supabase linter and a
+read of the catalog, and fixed in migration 0043:
+
+- **Nine SECURITY DEFINER functions with no authorisation check, executable by
+  `anon`** — the unauthenticated role whose key ships in the browser bundle.
+  Among them `gbm_merge_player` and `gbm_merge_club`, which delete rows, and
+  `claude_compute_percentiles` and `claude_write_reports`, which need no
+  identifiers to call. EXECUTE revoked from `public`, `anon` and
+  `authenticated`; they are driven from privileged SQL, not from the API.
+- **`sofascore_tournaments` with RLS disabled**, granted to `anon`.
+- **`v_claude_candidates` as a SECURITY DEFINER view** — it exposes name, date
+  of birth, nationality, market value and agency per player, and evaluated RLS
+  as its creator rather than its reader.
+- **Thirteen functions with a mutable `search_path`**, including the one that
+  authenticates the agent token against a table by name.
+- **The agent token stored in plaintext**, in a table granted to `anon` and
+  `authenticated` with RLS-and-no-policies the only thing denying them. Now a
+  SHA-256 digest; the caller sends the same string and the function hashes it
+  before comparing, so nothing had to be coordinated.
+
+Migration 0044 captures all twenty objects, transcribed from the live catalog.
+It has **not been executed** — the objects already exist, and applying a
+transcription over working production functions risks more than it proves.
+What was verified instead: all fourteen function bodies hash identically to
+`pg_proc.prosrc` after normalising comments and whitespace, and the view's 47
+output columns match in name and order. Validate the file on a Supabase
+preview branch before any rebuild depends on it.
+
+Left deliberately in place, flagged rather than taken:
+
+- `staging_ingest` keeps its unauthenticated INSERT policy, restricted to
+  three source values. It is the external scraper's drop-box and `anon` cannot
+  read, update or delete through it; removing it would break a running
+  collection.
+- `claude_tm_queue` keeps `anon` EXECUTE, because the token is its
+  authentication.
+- Supabase's default TRUNCATE grant is held by `anon` on 71 tables and
+  `authenticated` on 76. TRUNCATE is never filtered by RLS — but PostgREST
+  exposes no TRUNCATE and both roles are NOLOGIN, so there is no request that
+  reaches it. Narrowing it schema-wide is a deliberate decision with an API
+  re-test attached, not a side effect of a capture.
 
 ## Provider research
 
