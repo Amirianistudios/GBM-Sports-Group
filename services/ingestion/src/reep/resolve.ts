@@ -45,20 +45,36 @@ const CONFIDENCE = 0.99;
 /**
  * (register provider slug, namespace) → GBM provider code, for PLAYER-scoped
  * bridges. Namespaces are provider-native and vary per provider — surveyed
- * from release 20260820T103440Z itself: Transfermarkt uses its URL segment
- * `spieler` (`spiel` is a match, `verein` a club, `trainer` a coach), FBref
- * uses `person`, StatsBomb open-data ids appear as `offline_player`.
+ * from the release itself: Transfermarkt uses its URL segment `spieler`
+ * (`spiel` is a match, `verein` a club, `trainer` a coach), FBref and the
+ * Opta-family providers use `person`, StatsBomb open-data ids appear as
+ * `offline_player`.
  *
- * Only providers registered in `data_providers` are mapped; the register
- * carries many more (Opta, SkillCorner, ESPN, FIFA, EA FC, Capology …) which
- * are deliberately left out until GBM has a reason to consume them, and the
- * ambiguous `fm` slug is not guessed at. Bridges for a matched player that
- * fall outside this map are counted and reported, never written.
+ * Six providers were added on release 20260826T221009Z after surveying the
+ * register against 297 of GBM's own Transfermarkt ids: 296 resolve (99.7%),
+ * and the bridges reach far past the original seven. Coverage of the sample:
+ * opta 98%, skillcorner 89%, fifa 88%, besoccer 81%, espn 77%, capology 50%,
+ * uefa 25%. Every id shape was checked before mapping — besoccer and espn are
+ * 6–7 digit numerics, uefa numeric, opta and fifa share a 25-character
+ * alphanumeric family, capology is a name slug ending in its id.
  *
- * Sofascore, FotMob and Wikidata do not appear in the v1 curated bridge set
- * at all — in v1 they live in the overlay (confidence 0.85), which this
- * resolver deliberately does not consume. Their v0-derived rows remain in
- * player_external_ids untouched.
+ * `fm` IS NOT FOTMOB, and must not be mapped. It has 141,801 player bridges
+ * and 76% coverage of the sample — by far the largest gain on offer, which is
+ * why it was tested rather than assumed:
+ *
+ *   · FotMob player ids are ~6 digits; `fm` ids are 8 digits (64,868) and
+ *     10 digits (59,006), with only 4,431 at 6.
+ *   · Kevin De Bruyne's real FotMob id, 172780, is absent from the `fm` set.
+ *   · fotmob.com/players/<anything> answers 200 — it is a single-page app, so
+ *     probing a URL neither confirms nor denies an id.
+ *
+ * The shape matches Football Manager. Mapping it would have written thousands
+ * of wrong FotMob ids at confidence 0.99, each looking perfectly plausible.
+ *
+ * Sofascore does not appear in the register at all — zero rows under any
+ * namespace — so GBM's Sofascore ids can only come from its own collection.
+ * Wikidata likewise. Bridges for a matched player that fall outside this map
+ * are counted and reported, never written.
  */
 export const REEP_PLAYER_BRIDGES: Record<string, { namespace: string; provider: string }> = {
   transfermarkt: { namespace: 'spieler', provider: 'TRANSFERMARKT' },
@@ -68,6 +84,12 @@ export const REEP_PLAYER_BRIDGES: Record<string, { namespace: string; provider: 
   fbref: { namespace: 'person', provider: 'FBREF' },
   understat: { namespace: 'player', provider: 'UNDERSTAT' },
   statsbomb: { namespace: 'offline_player', provider: 'STATSBOMB' },
+  besoccer: { namespace: 'player', provider: 'BESOCCER' },
+  opta: { namespace: 'person', provider: 'OPTA' },
+  fifa: { namespace: 'person', provider: 'FIFA' },
+  uefa: { namespace: 'player', provider: 'UEFA' },
+  espn: { namespace: 'person', provider: 'ESPN' },
+  capology: { namespace: 'player', provider: 'CAPOLOGY' },
 };
 
 /**

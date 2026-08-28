@@ -49,6 +49,7 @@ export const NAV_GROUPS: Array<{
       { href: '/team', labelKey: 'nav.team' },
       { href: '/data', labelKey: 'nav.data' },
       { href: '/data/sync', labelKey: 'nav.sync' },
+      { href: '/data/quality', labelKey: 'nav.quality' },
       { href: '/settings', labelKey: 'nav.settings' },
     ],
   },

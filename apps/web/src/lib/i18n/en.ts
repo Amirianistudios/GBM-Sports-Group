@@ -41,6 +41,7 @@ export const en = {
   'nav.team': 'Team',
   'nav.data': 'Data Providers',
   'nav.sync': 'Sync Status',
+  'nav.quality': 'Data Quality',
   'nav.settings': 'Settings',
   'nav.signout': 'Sign out',
   'nav.menu': 'Menu',

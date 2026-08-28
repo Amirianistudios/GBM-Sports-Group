@@ -4898,6 +4898,24 @@ export type Database = {
         }
         Relationships: []
       }
+      v_merge_recovery_queue: {
+        Row: {
+          contracts: number | null
+          external_ids: number | null
+          full_name: string | null
+          likely_lost_rows: boolean | null
+          market_values: number | null
+          merged_at: string | null
+          player_id: string | null
+          raw_payloads: number | null
+          representation: number | null
+          season_stats: number | null
+          source_facts: number | null
+          transfermarkt_id: string | null
+          transfers: number | null
+        }
+        Relationships: []
+      }
       v_player_current_value: {
         Row: {
           currency: string | null
@@ -5235,6 +5253,7 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["gbm_role"]
       }
+      gbm_data_quality_report: { Args: never; Returns: Json }
       gbm_generate_shortlist: {
         Args: { p_request: string }
         Returns: {

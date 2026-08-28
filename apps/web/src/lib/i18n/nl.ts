@@ -36,6 +36,7 @@ export const nl: Dict = {
   'nav.team': 'Team',
   'nav.data': 'Dataleveranciers',
   'nav.sync': 'Synchronisatiestatus',
+  'nav.quality': 'Datakwaliteit',
   'nav.settings': 'Instellingen',
   'nav.signout': 'Afmelden',
   'nav.menu': 'Menu',

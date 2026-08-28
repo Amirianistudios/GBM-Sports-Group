@@ -11,6 +11,65 @@ re-deriving the project. The audit that re-verified everything is
 plan now in flight is
 [`GBM_DATA_IMPLEMENTATION_PLAN.md`](GBM_DATA_IMPLEMENTATION_PLAN.md).
 
+## Phase B1 — the identity foundation (2026-08-28)
+
+**What is actually reachable**, probed rather than assumed: Reep, StatsBomb
+open data, Understat and Wikidata answer 200. Sofascore 403, FBref 403,
+BeSoccer 406, API-Football 403, `api.github.com` 403. FotMob returns its own
+Next.js 404 page — `/api/allLeagues` no longer exists; they moved to endpoints
+signed with an `x-mas` header. Full matrix in
+[`DATA_SOURCE_RESEARCH.md`](DATA_SOURCE_RESEARCH.md).
+
+**Reep is the answer for identity and it is live.** Release
+`20260826T221009Z`, CC0-1.0, **5,868,269 bridges**. Measured against 297 of
+GBM's own Transfermarkt ids, **296 resolve — 99.7%**. The resolver had been
+mapping seven providers; six more are now mapped after checking every id shape:
+besoccer, opta, fifa, uefa, espn, capology. `OPTA`, `FIFA`, `UEFA`, `ESPN` and
+`CAPOLOGY` were registered in `data_providers` to receive them; `BESOCCER` and
+`FOTMOB` already existed.
+
+**Two negative findings that were worth more than the positive ones.**
+Sofascore does not appear in the register at all — zero rows, any namespace —
+so GBM's 5,684 Sofascore ids cannot be extended from Reep. And `fm`, with
+141,801 bridges and 76% coverage, **is not FotMob**: FotMob ids are ~6 digits
+while `fm` ids are 8 and 10, and De Bruyne's real id `172780` is absent from
+the set. `fotmob.com/players/<anything>` answers 200, so the obvious URL check
+passes for wrong ids too. Mapping it would have written ~6,000 confident wrong
+ids. It is unmapped and pinned by a test.
+
+**Data quality is now counted, not assumed.** `gbm_data_quality_report()`
+returns thirteen checks as one jsonb answer, read by both the app
+(`/data/quality`) and the ingestion workflow. Its first run found four real
+problems nobody could previously see:
+
+| Finding | Count |
+|---|---:|
+| players holding two ids for one provider | **25** |
+| provider ids pointing at several players | **5** |
+| players with two current representation records | **13** |
+| merge survivors below population coverage | **39** |
+
+**The merge recovery queue** (`v_merge_recovery_queue`) names the players
+merged under the defective function. The cohort comparison shows the defect's
+fingerprint rather than generic thinness — the 46 survivors against 7,790 other
+Transfermarkt-backed players:
+
+| | survivors | others | exposed to the delete? |
+|---|---:|---:|---|
+| market values | 6.6 | 14.7 | yes |
+| transfers | 3.8 | 6.5 | yes |
+| season stats | 3.3 | 4.4 | yes |
+| contracts | 1.7 | 0.8 | no — and they gained |
+| representation | 1.5 | 1.0 | no — and they gained |
+
+Every collision-prone table is down; every safe table is up. Only 32 of the 46
+hold a Transfermarkt id. Recovery is idempotent re-ingestion, not repair.
+
+**Automation**: a `reep-enrich` workflow runs the resolver weekly (Thursday
+05:00 UTC, after the Wednesday import), sharing the `gbm-ingestion` concurrency
+group so it cannot overlap the other data jobs. See
+[`AUTOMATION.md`](AUTOMATION.md).
+
 ## Player merge no longer destroys the duplicate (2026-08-28)
 
 `gbm_merge_player` resolved a unique-key collision with a DELETE that had no

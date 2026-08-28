@@ -34,6 +34,7 @@ export const ru: Dict = {
   'nav.team': 'Команда',
   'nav.data': 'Поставщики данных',
   'nav.sync': 'Статус синхронизации',
+  'nav.quality': 'Качество данных',
   'nav.settings': 'Настройки',
   'nav.signout': 'Выйти',
   'nav.menu': 'Меню',

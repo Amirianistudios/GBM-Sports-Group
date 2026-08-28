@@ -10,6 +10,86 @@ live source this session is labelled UNVERIFIED.
 
 ---
 
+## 2026-08-28 — what is actually reachable, measured
+
+Every verdict below this heading was re-tested from the GBM automation
+environment on 2026-08-28 rather than reasoned about. A source that cannot be
+fetched is not a source, whatever its documentation says.
+
+| Source | Probe | Result | Verdict |
+|---|---|---|---:|
+| **Reep register** | `data.reep.football/releases/latest.json` | **200** | **ADOPT — in use** |
+| StatsBomb open data | `raw.githubusercontent.com/statsbomb/open-data` | **200** | reachable |
+| Understat | `understat.com/league/EPL` | **200** | reachable |
+| Wikidata | `wikidata.org/w/api.php` | **200** | reachable |
+| Sofascore | `api.sofascore.com/api/v1/player/…` | **403** | blocked |
+| Sofascore (www) | `www.sofascore.com/api/v1/player/…` | **403** | blocked |
+| FotMob | `www.fotmob.com/api/allLeagues` | **404** | endpoint gone |
+| FBref | `fbref.com/en/` | **403** | blocked |
+| BeSoccer | `www.besoccer.com/` | **406** | blocked |
+| API-Football | `v3.football.api-sports.io/status` | **403** | needs a key |
+| GitHub API | `api.github.com` | **403** | blocked (raw is not) |
+
+Two of these need explaining rather than just recording.
+
+**FotMob's 404 is not a rate limit.** The response is 207,959 bytes of the
+site's own Next.js 404 page: `/api/allLeagues` no longer exists. FotMob moved
+to endpoints signed with an `x-mas` header. Every wrapper that reads the old
+paths — including the ones commonly recommended — is describing an API that
+has been withdrawn. Rewriting one against the signed endpoints is
+reverse-engineering an anti-bot measure, which is a different decision from
+"write a connector" and is not taken here.
+
+**`raw.githubusercontent.com` works while `api.github.com` does not.** Any
+dataset published as files in a repository is therefore reachable, and
+anything needing the API to enumerate releases is not. That is what makes
+StatsBomb open data practical and the `transfermarkt-datasets` release API
+awkward.
+
+### The Reep register is the answer for identity, and it is live
+
+Release **`20260826T221009Z`**, generated 2026-08-26, **CC0-1.0**:
+
+| artefact | rows |
+|---|---:|
+| `csv/bridges.csv.gz` | **5,868,269** |
+| `csv/entities.csv.gz` | 1,876,191 |
+| `csv/players.csv.gz` | 405,148 |
+| `csv/overlay_xids.csv.gz` | 775,607 |
+
+Measured against 297 of GBM's own Transfermarkt ids: **296 resolve — 99.7%**.
+Per-provider coverage of that sample, all verified by id shape before being
+mapped:
+
+    opta person        98%      skillcorner player  89%
+    wyscout player     98%      fifa person         88%
+    sportmonks player  91%      besoccer player     81%
+    espn person        77%      capology player     50%
+    uefa player        25%
+
+The resolver had been mapping seven providers; six more are now mapped
+(besoccer, opta, fifa, uefa, espn, capology). See
+[`ENTITY_RESOLUTION.md`](ENTITY_RESOLUTION.md).
+
+### Two negative findings worth as much as the positive ones
+
+**Sofascore is not in the Reep register.** Zero rows, any namespace. Combined
+with the 403 above, there is no route to new Sofascore ids in this
+environment. GBM's existing 5,684 came from its own collection and cannot be
+extended from Reep.
+
+**`fm` is not FotMob.** The slug has 141,801 player bridges and 76% coverage —
+the single largest gain available, which is exactly why it was tested instead
+of assumed. FotMob player ids are ~6 digits; `fm` ids are 8 digits (64,868)
+and 10 digits (59,006), with only 4,431 at six. Kevin De Bruyne's real FotMob
+id, `172780`, does not appear in the `fm` set at all. `fotmob.com/players/…`
+returns 200 for any id — it is a single-page app, so a URL probe proves
+nothing either way. The shape matches Football Manager. Mapping it would have
+written roughly 6,000 wrong FotMob ids at confidence 0.99, each individually
+plausible. It is left unmapped and pinned by a test.
+
+---
+
 ## The finding that governs everything else
 
 Four independent routes to position-specific advanced metrics — the xG, xA,

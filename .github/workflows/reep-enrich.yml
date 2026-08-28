@@ -1,0 +1,97 @@
+# ---------------------------------------------------------------------------
+# Cross-provider identity enrichment from the Reep register.
+#
+# Separate from data-refresh.yml on purpose. That workflow re-imports the
+# Transfermarkt dataset and rewrites season statistics; this one only reads the
+# CC0 Reep release and writes rows into player_external_ids. Enriching identity
+# should not require, or risk, a full import.
+#
+# The register is ~97MB compressed and 5.87M bridges, so this needs a runner
+# rather than a serverless function — and the service-role key lives here, not
+# in Vercel.
+#
+# Secrets:
+#   NEXT_PUBLIC_SUPABASE_URL    project URL; defaulted below, public by design
+#   SUPABASE_SERVICE_ROLE_KEY   service key; bypasses RLS; never printed
+# ---------------------------------------------------------------------------
+name: reep-enrich
+
+on:
+  # Touching the marker file starts a run by hand, the same mechanism the other
+  # ingestion workflows use — the GitHub App that opens pull requests here
+  # cannot call workflow_dispatch.
+  push:
+    branches: [main]
+    paths: ['.github/reep-trigger']
+  schedule:
+    # Weekly, the morning after the Wednesday dataset refresh, so new players
+    # from that import get their provider ids without waiting a week. Reep
+    # publishes roughly weekly; a re-run against an unchanged release is a
+    # no-op because the resolver skips ids it already holds.
+    - cron: '0 5 * * 4'
+  workflow_dispatch:
+
+# Never overlap the weekly import or the hourly refresh: all three write to
+# player_external_ids and the caches derived from it.
+concurrency:
+  group: gbm-ingestion
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  enrich:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || 'https://tyzndcjuiffnyhluddce.supabase.co' }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # Fails loudly if the service key is missing rather than resolving
+      # 5.87M bridges and then discovering it cannot write.
+      - name: Preflight
+        run: pnpm ingest:preflight | tee logs-preflight.txt
+
+      - name: Resolve identities through Reep
+        run: pnpm reep:resolve | tee logs-resolve.txt
+
+      # The new ids change which players have provider coverage, which the
+      # data-confidence surfaces read.
+      - name: Quality check
+        if: always()
+        run: pnpm quality:check | tee logs-quality.txt
+
+      - name: Run summary
+        if: always()
+        run: |
+          {
+            echo '## Reep identity enrichment'
+            echo '```'
+            tail -60 logs-resolve.txt 2>/dev/null
+            echo '```'
+            echo '### Quality'
+            echo '```'
+            tail -30 logs-quality.txt 2>/dev/null
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Retain logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reep-enrich-${{ github.run_number }}
+          path: logs-*.txt

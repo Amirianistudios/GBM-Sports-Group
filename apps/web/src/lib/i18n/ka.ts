@@ -49,6 +49,7 @@ export const ka: Dict = {
   'nav.team': 'გუნდი',
   'nav.data': 'მონაცემთა მომწოდებლები',
   'nav.sync': 'სინქრონიზაციის სტატუსი',
+  'nav.quality': 'მონაცემთა ხარისხი',
   'nav.settings': 'პარამეტრები',
   'nav.signout': 'გასვლა',
   'nav.menu': 'მენიუ',
