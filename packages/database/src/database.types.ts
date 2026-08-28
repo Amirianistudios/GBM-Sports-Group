@@ -3493,6 +3493,7 @@ export type Database = {
         Row: {
           birth_country_id: string | null
           birth_place: string | null
+          cached_competition_id: string | null
           cached_contract_expires: string | null
           cached_league: string | null
           cached_market_value: number | null
@@ -3531,6 +3532,7 @@ export type Database = {
         Insert: {
           birth_country_id?: string | null
           birth_place?: string | null
+          cached_competition_id?: string | null
           cached_contract_expires?: string | null
           cached_league?: string | null
           cached_market_value?: number | null
@@ -3569,6 +3571,7 @@ export type Database = {
         Update: {
           birth_country_id?: string | null
           birth_place?: string | null
+          cached_competition_id?: string | null
           cached_contract_expires?: string | null
           cached_league?: string | null
           cached_market_value?: number | null
@@ -3610,6 +3613,13 @@ export type Database = {
             columns: ["birth_country_id"]
             isOneToOne: false
             referencedRelation: "countries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "players_cached_competition_id_fkey"
+            columns: ["cached_competition_id"]
+            isOneToOne: false
+            referencedRelation: "competitions"
             referencedColumns: ["id"]
           },
           {
