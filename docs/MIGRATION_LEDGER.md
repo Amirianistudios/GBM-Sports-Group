@@ -105,6 +105,13 @@ So the rebuild proof comes first.
    production. Until that passes, a repair is a guess. Recorded in
    [`SCHEMA_REBUILD_VERIFICATION.md`](SCHEMA_REBUILD_VERIFICATION.md).
 
+   **This step has not been done.** The branch was costed and declined on
+   2026-08-28, so the reconciliation below is blocked by choice rather than by
+   difficulty. Do not skip ahead to step 3: `migration repair` writes the
+   ledger without running SQL, so marking a file applied on an unproven chain
+   can hide a migration that never worked, permanently and silently. The
+   ledger mismatch is untidy; a falsely-repaired ledger is dangerous.
+
 2. **Link and read the current state.**
 
    ```bash

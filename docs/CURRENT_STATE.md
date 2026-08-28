@@ -82,7 +82,11 @@ filenames with no matching ledger row are `harden_views_and_functions` and
 `capture_the_out_of_band_objects`, which is deliberately unapplied.
 
 `supabase db push` would therefore still try to replay files it thinks are
-new. Reconciling the ledger is a separate, deliberate job.
+new — **do not run it against production** until the ledger is reconciled.
+That reconciliation is mapped in [`MIGRATION_LEDGER.md`](MIGRATION_LEDGER.md)
+and blocked on a rebuild proof that was costed and declined on 2026-08-28;
+see [`SCHEMA_REBUILD_VERIFICATION.md`](SCHEMA_REBUILD_VERIFICATION.md) for
+what that leaves unproven and when to revisit it.
 
 **Database** (project `tyzndcjuiffnyhluddce`, 67 tables, 12 views)
 

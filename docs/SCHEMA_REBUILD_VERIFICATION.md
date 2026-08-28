@@ -3,9 +3,11 @@
 The question this file answers: if the Supabase project vanished, would
 `supabase/migrations/` produce it again?
 
-**Status on 2026-08-28: not yet proven end to end.** Static verification is
-complete and passes; the preview-branch rebuild is pending a cost approval,
-which is the only thing standing between "should" and "does".
+**Status on 2026-08-28: proven statically, not by execution — and that is a
+deliberate choice, not an oversight.** Every static check passes. The
+preview-branch rebuild was costed at $0.01344/hour and declined by GBM on
+2026-08-28; revisit before the next event that would depend on it (see
+*When to revisit* below).
 
 ## Why it needed asking
 
@@ -67,18 +69,46 @@ A run of the full chain from empty. Specifically:
 ### Why it has not run
 
 A Supabase development branch on this organisation costs **$0.01344/hour**
-(≈$9.70/month if left running). Spending money on the account is the owner's
-decision, not an automated one, so the branch has not been created. The
-approval is the only blocker; nothing technical stands in the way.
+(≈$0.01–$0.03 for a create-verify-delete cycle, ≈$9.70/month if left running).
+Put to GBM on 2026-08-28 and **declined for now**. Nothing technical stands in
+the way; it is a spending decision.
 
 The alternative — proving the chain against production — is not an
 alternative. Production is the thing being protected.
+
+### What that leaves unproven
+
+Static analysis establishes that the repository *contains* everything
+production has, and that the captured definitions are faithful. It cannot
+establish that the 44 files **execute** cleanly from empty, in order. The
+specific risks that only execution can rule out:
+
+- an ordering fault beyond the one already found and fixed (the capture had to
+  move ahead of the hardening, which was caught by reading dependencies — a
+  second such fault would be caught the same way only if someone looks);
+- a type or extension a migration assumes but never creates, because
+  production acquired it by another route;
+- a policy or grant that fails on a database where the referenced role or
+  helper does not yet exist.
+
+None of these affect the running system. They affect the day the database has
+to be rebuilt, which is exactly the day nobody wants to discover them.
+
+### When to revisit
+
+Do it before any of these:
+
+- restoring or relocating the project, or standing up a second environment;
+- reconciling the migration ledger — `migration repair` marks files applied
+  without running them, so repairing on an unproven chain can permanently hide
+  a migration that never worked (see [`MIGRATION_LEDGER.md`](MIGRATION_LEDGER.md));
+- onboarding anyone who needs a local or staging database from the repo.
 
 ## When it runs, record here
 
 | Field | Value |
 |---|---|
-| Preview branch ref | *pending* |
+| Preview branch ref | *not created — declined 2026-08-28* |
 | Branch created | *pending* |
 | Migrations applied | *pending* (44 expected) |
 | Chain result | *pending* |
