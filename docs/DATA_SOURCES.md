@@ -14,7 +14,7 @@ end-to-end pipeline run (see `GBM_CURRENT_STATE_AUDIT.md` §5 and
 | Source | Status | Cost | What GBM uses it for |
 |---|---|---|---|
 | Transfermarkt dataset | **LIVE** | free | Bio, market values, transfers, contracts, agent names, counting season statistics (appearances) |
-| Reep v1 register | **LIVE** | free | Cross-provider identity — resolver migrated 2026-08-20; matched 99.7% of the staged import set |
+| Reep v1 register | **LIVE — 13 providers mapped** | free (CC0-1.0) | Cross-provider identity. Release `20260826T221009Z`, 5,868,269 bridges; 296 of 297 sampled GBM Transfermarkt ids resolve (99.7%). Enriched weekly by `reep-enrich` |
 | Reep v0 register | **RETIRED — rows kept** | free | Frozen 21 Jun 2026; its `v0-wikidata` identities remain as provenance |
 | API-Football | **CONNECTED** (Free tier) | $0 → $19/mo | Season and match statistics, injuries, youth competitions |
 | Wyscout | **PRICE IT** | quote | Advanced metrics, per-90s, positional percentiles |
@@ -25,13 +25,28 @@ end-to-end pipeline run (see `GBM_CURRENT_STATE_AUDIT.md` §5 and
 | UEFA youth feeds | **LICENCE FIRST** | unknown | Youth League and youth Euros |
 | Wikidata (direct) | **LATER, NARROW** | free | Club history only; Reep already extracted the rest |
 | FIFA API | **NO** | — | Terms bar GBM's use, despite carrying no dates of birth |
-| Sofascore | **NO** | — | Cannot sublicense at any price |
-| FotMob | **NO** | — | Cannot sublicense at any price |
+| Sofascore | **NO** | — | Cannot sublicense at any price. Also 403 from the automation environment, and **absent from the Reep register entirely** — GBM's 5,684 ids came from its own collection and cannot be extended |
+| FotMob | **NO** | — | Cannot sublicense at any price. `/api/allLeagues` now returns their own 404 page; they moved to endpoints signed with an `x-mas` header. The register's `fm` slug is **not** FotMob — see ENTITY_RESOLUTION.md |
 | FBref | **NO** | — | Advanced data deleted Jan 2026; terms bar GBM's use |
 | Understat | **NO** | — | Blanket `Disallow: /`; shot data only |
 | SportMonks | **NO** | — | 2.5% identity coverage of GBM's squad |
 | SportDB | **NO** | — | Paid key over a free MIT scraper; no legal entity |
 | National federation sites | **NO** | — | No structured squad data anywhere |
+
+### Identity-only providers, added 2026-08-28
+
+Registered so the Reep resolver can store their ids. None carries a fact in
+GBM yet; holding the id now is what makes a future feed a configuration change
+rather than a re-resolution of 13,000 players.
+
+| Provider | Sample coverage | Why it is worth holding |
+|---|---:|---|
+| OPTA | 98% | the identity the industry keys on |
+| FIFA | 88% | governing-body identity, same id family as Opta |
+| BESOCCER | 81% | already registered; lower-division depth |
+| ESPN | 77% | a public profile a scout can open without a subscription |
+| CAPOLOGY | 50% | salary data — the recruitment engine asks for a salary budget it cannot currently fill |
+| UEFA | 25% | official European competition identity |
 
 ## Capability matrix
 
