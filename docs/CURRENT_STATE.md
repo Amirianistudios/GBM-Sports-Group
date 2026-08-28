@@ -11,6 +11,48 @@ re-deriving the project. The audit that re-verified everything is
 plan now in flight is
 [`GBM_DATA_IMPLEMENTATION_PLAN.md`](GBM_DATA_IMPLEMENTATION_PLAN.md).
 
+## Player merge no longer destroys the duplicate (2026-08-28)
+
+`gbm_merge_player` resolved a unique-key collision with a DELETE that had no
+key predicate, so one colliding row removed **every** row the duplicate owned
+in that table. Measured on synthetic players: a duplicate with three
+season-stat rows, one colliding, lost all three.
+
+**This ran in production 46 times** — `player_aliases` records 46 `MERGE`
+aliases, plus 2 club merges. The old function kept no audit, so rows it removed
+cannot be enumerated after the fact. What the blast radius *was* can be
+bounded, and it is narrower than the defect suggests:
+
+| Exposure on the 46 survivors | Count |
+|---|---:|
+| in the GBM portfolio | **0** |
+| with scout ratings | **0** |
+| with scouting reports | **0** |
+| left with no season stats at all | **0** |
+| raw payloads still held in `source_records` | 76 |
+
+No agency-owned record was involved. Scout opinion lives in tables with no
+unique key over `player_id`, so those rows were reassigned rather than exposed
+to the delete at all. Everything that *could* have been lost is
+provider-derived, and ingestion is idempotent by design with raw payloads
+retained — so a targeted re-ingestion of those 46 players restores anything
+missing. That is the recommended follow-up, not a database repair.
+
+The replacement (`20260901150000`) moves each child row individually and, when
+a row cannot move, **archives it whole into `player_merge_conflicts` before
+removing it**. Nothing is silently dropped; conflicts queue for review. It also
+covers `source_facts`, which reaches a player through `(entity_type,
+entity_id)` with no foreign key — a catalog-driven loop cannot see it, and
+leaving it out would strand every merged player's provenance on a deleted id.
+
+Verified on synthetic players in rolled-back transactions: 20 assertions across
+the 12 scenarios (no-conflict children, combined provider ids, season stats,
+market values, contracts, representation, watchlists, provenance, collisions,
+idempotency, reversal guard, self-merge). `representation_records` keeps
+**both** rows by demoting the duplicate's `is_current` rather than archiving
+one. A merge involving a portfolio player as the *duplicate* is refused as a
+probable argument reversal unless forced.
+
 ## Verified on 2026-08-28, after the audit branch merged to `main`
 
 `claude/gbm-project-audit-b4dzzs` merged into `main` as **`f6ad141`**, a
@@ -23,8 +65,8 @@ modified; `CLAUDE.md` untouched.
 
 | | |
 |---|---:|
-| migration files in `supabase/migrations/` | **43** |
-| migration rows recorded in Supabase | **66** (65 distinct names) |
+| migration files in `supabase/migrations/` | **44** |
+| migration rows recorded in Supabase | **66** (65 distinct names) — see [`MIGRATION_LEDGER.md`](MIGRATION_LEDGER.md) |
 | applied names with no matching repo filename | **25** |
 | repo filenames never applied under that name | **3** |
 | live objects with no representation in the repo | **0** |
@@ -136,7 +178,7 @@ Re-run on 2026-08-28 on merged `main`:
 | `pnpm install` | passes — 5 workspace projects |
 | `pnpm typecheck` | passes — all 4 packages |
 | `pnpm lint` | passes — 0 errors, 0 warnings |
-| `pnpm test` | passes — **123 tests, 10 files** |
+| `pnpm test` | passes — **135 tests, 11 files** |
 | `pnpm build` | passes — **25 routes compiled** |
 
 The five gates are now mechanical: `.github/workflows/ci.yml` runs them on

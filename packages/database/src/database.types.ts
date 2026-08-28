@@ -2712,6 +2712,77 @@ export type Database = {
           },
         ]
       }
+      player_merge_conflicts: {
+        Row: {
+          constraint_name: string | null
+          created_at: string
+          id: string
+          merge_id: string
+          payload: Json
+          reviewed_at: string | null
+          reviewed_by: string | null
+          table_name: string
+        }
+        Insert: {
+          constraint_name?: string | null
+          created_at?: string
+          id?: string
+          merge_id: string
+          payload: Json
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          table_name: string
+        }
+        Update: {
+          constraint_name?: string | null
+          created_at?: string
+          id?: string
+          merge_id?: string
+          payload?: Json
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          table_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "player_merge_conflicts_merge_id_fkey"
+            columns: ["merge_id"]
+            isOneToOne: false
+            referencedRelation: "player_merges"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      player_merges: {
+        Row: {
+          duplicate_id: string
+          duplicate_snapshot: Json
+          id: string
+          merged_at: string
+          merged_by: string | null
+          report: Json
+          survivor_id: string
+        }
+        Insert: {
+          duplicate_id: string
+          duplicate_snapshot: Json
+          id?: string
+          merged_at?: string
+          merged_by?: string | null
+          report?: Json
+          survivor_id: string
+        }
+        Update: {
+          duplicate_id?: string
+          duplicate_snapshot?: Json
+          id?: string
+          merged_at?: string
+          merged_by?: string | null
+          report?: Json
+          survivor_id?: string
+        }
+        Relationships: []
+      }
       player_national_team_records: {
         Row: {
           caps: number | null
